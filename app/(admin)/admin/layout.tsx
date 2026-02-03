@@ -25,7 +25,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
 
     return (
         <ConfirmDialogProvider>
-            <div className="flex min-h-screen bg-gray-50 text-gray-900" style={{
+            <div className="flex min-h-screen bg-gray-50 text-gray-900 overflow-x-hidden" style={{
                 '--primary': '#ffffff',
                 '--text-primary': '#111111',
                 '--text-secondary': '#6b7280',
@@ -34,7 +34,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                 '--border-color': '#e5e7eb'
             } as React.CSSProperties}>
                 <Sidebar />
-                <div className="flex-1 flex flex-col lg:ml-64">
+                <div className="flex-1 flex flex-col lg:ml-64 min-w-0 overflow-x-hidden">
                     {/* Top Header */}
                     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
                         <h2 className="font-semibold text-gray-700 ml-12 lg:ml-0">Dashboard</h2>
@@ -45,7 +45,7 @@ function AdminLayoutContent({ children }: { children: React.ReactNode }) {
                             <span className="text-sm font-medium hidden sm:block">{user?.username || 'Admin'}</span>
                         </div>
                     </header>
-                    <main className="p-4 lg:p-8">
+                    <main className="p-4 lg:p-8 overflow-x-auto">
                         {children}
                     </main>
                 </div>
