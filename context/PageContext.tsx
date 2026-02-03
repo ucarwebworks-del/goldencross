@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Page {
     id: string;
@@ -64,58 +66,56 @@ const defaultPages: Page[] = [
 
 interface PageContextType {
     pages: Page[];
-    updatePage: (id: string, updates: Partial<Page>) => void;
-    addPage: (page: Omit<Page, 'id'>) => void;
+    updatePage: (id: string, updates: Partial<Page>) => Promise<void>;
+    addPage: (page: Omit<Page, 'id'>) => Promise<void>;
     getPage: (slug: string) => Page | undefined;
 }
 
 const PageContext = createContext<PageContextType | undefined>(undefined);
 
 export function PageProvider({ children }: { children: ReactNode }) {
-    const [pages, setPages] = useState<Page[]>(defaultPages);
+    const [pages, setPages] = useState<Page[]>([]);
 
     useEffect(() => {
-        const saved = localStorage.getItem('pages');
-        if (saved) {
-            try {
-                const parsedPages: Page[] = JSON.parse(saved);
-                // Merge new defaults if they don't exist in saved
-                const mergedPages = [...parsedPages];
-                let hasChanges = false;
+        const pagesRef = collection(db, 'pages');
 
-                defaultPages.forEach(defPage => {
-                    if (!parsedPages.find(p => p.slug === defPage.slug)) {
-                        mergedPages.push(defPage);
-                        hasChanges = true;
-                    }
+        const unsubscribe = onSnapshot(pagesRef, (snapshot) => {
+            if (snapshot.empty) {
+                defaultPages.forEach(async (page) => {
+                    const { id, ...pageData } = page;
+                    await addDoc(pagesRef, pageData);
                 });
-
-                setPages(mergedPages);
-                if (hasChanges) {
-                    localStorage.setItem('pages', JSON.stringify(mergedPages));
-                }
-            } catch (e) {
-                console.error('Failed to parse pages', e);
                 setPages(defaultPages);
+            } else {
+                const pagesData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Page[];
+                setPages(pagesData);
             }
-        }
+        }, (error) => {
+            console.error('Error fetching pages:', error);
+            setPages(defaultPages);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const savePages = (newPages: Page[]) => {
-        setPages(newPages);
-        localStorage.setItem('pages', JSON.stringify(newPages));
+    const updatePage = async (id: string, updates: Partial<Page>) => {
+        try {
+            const pageRef = doc(db, 'pages', id);
+            await updateDoc(pageRef, updates);
+        } catch (error) {
+            console.error('Error updating page:', error);
+        }
     };
 
-    const updatePage = (id: string, updates: Partial<Page>) => {
-        const newPages = pages.map(p =>
-            p.id === id ? { ...p, ...updates } : p
-        );
-        savePages(newPages);
-    };
-
-    const addPage = (page: Omit<Page, 'id'>) => {
-        const newPage: Page = { ...page, id: Date.now().toString() };
-        savePages([...pages, newPage]);
+    const addPage = async (page: Omit<Page, 'id'>) => {
+        try {
+            await addDoc(collection(db, 'pages'), page);
+        } catch (error) {
+            console.error('Error adding page:', error);
+        }
     };
 
     const getPage = (slug: string) => {

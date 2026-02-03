@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, writeBatch } from 'firebase/firestore';
 
 export interface Banner {
     id: string;
@@ -14,10 +16,10 @@ export interface Banner {
 
 interface BannerContextType {
     banners: Banner[];
-    addBanner: (banner: Omit<Banner, 'id'>) => void;
-    updateBanner: (id: string, updates: Partial<Banner>) => void;
-    deleteBanner: (id: string) => void;
-    reorderBanners: (newOrder: Banner[]) => void;
+    addBanner: (banner: Omit<Banner, 'id'>) => Promise<void>;
+    updateBanner: (id: string, updates: Partial<Banner>) => Promise<void>;
+    deleteBanner: (id: string) => Promise<void>;
+    reorderBanners: (newOrder: Banner[]) => Promise<void>;
 }
 
 const BannerContext = createContext<BannerContextType | undefined>(undefined);
@@ -46,41 +48,71 @@ const defaultBanners: Banner[] = [
 ];
 
 export function BannerProvider({ children }: { children: ReactNode }) {
-    const [banners, setBanners] = useState<Banner[]>(defaultBanners);
+    const [banners, setBanners] = useState<Banner[]>([]);
 
     useEffect(() => {
-        const saved = localStorage.getItem('banners');
-        if (saved) {
-            try {
-                setBanners(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse banners', e);
+        const bannersRef = collection(db, 'banners');
+
+        const unsubscribe = onSnapshot(bannersRef, (snapshot) => {
+            if (snapshot.empty) {
+                defaultBanners.forEach(async (banner) => {
+                    const { id, ...bannerData } = banner;
+                    await addDoc(bannersRef, bannerData);
+                });
+                setBanners(defaultBanners);
+            } else {
+                const bannersData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Banner[];
+                bannersData.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+                setBanners(bannersData);
             }
-        }
+        }, (error) => {
+            console.error('Error fetching banners:', error);
+            setBanners(defaultBanners);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    useEffect(() => {
-        localStorage.setItem('banners', JSON.stringify(banners));
-    }, [banners]);
-
-    const addBanner = (banner: Omit<Banner, 'id'>) => {
-        const newBanner: Banner = {
-            ...banner,
-            id: Date.now().toString()
-        };
-        setBanners(prev => [...prev, newBanner]);
+    const addBanner = async (banner: Omit<Banner, 'id'>) => {
+        try {
+            await addDoc(collection(db, 'banners'), banner);
+        } catch (error) {
+            console.error('Error adding banner:', error);
+        }
     };
 
-    const updateBanner = (id: string, updates: Partial<Banner>) => {
-        setBanners(prev => prev.map(b => b.id === id ? { ...b, ...updates } : b));
+    const updateBanner = async (id: string, updates: Partial<Banner>) => {
+        try {
+            const bannerRef = doc(db, 'banners', id);
+            await updateDoc(bannerRef, updates);
+        } catch (error) {
+            console.error('Error updating banner:', error);
+        }
     };
 
-    const deleteBanner = (id: string) => {
-        setBanners(prev => prev.filter(b => b.id !== id));
+    const deleteBanner = async (id: string) => {
+        try {
+            const bannerRef = doc(db, 'banners', id);
+            await deleteDoc(bannerRef);
+        } catch (error) {
+            console.error('Error deleting banner:', error);
+        }
     };
 
-    const reorderBanners = (newOrder: Banner[]) => {
-        setBanners(newOrder);
+    const reorderBanners = async (newOrder: Banner[]) => {
+        try {
+            const batch = writeBatch(db);
+            newOrder.forEach((banner, index) => {
+                const bannerRef = doc(db, 'banners', banner.id);
+                batch.update(bannerRef, { order: index });
+            });
+            await batch.commit();
+        } catch (error) {
+            console.error('Error reordering banners:', error);
+        }
     };
 
     return (

@@ -143,16 +143,47 @@ export default function CheckoutPage() {
             applyCoupon(appliedCoupon.code);
         }
 
-        const createdOrder = addOrder(newOrder);
-        clearCart();
+        try {
+            const createdOrder = await addOrder(newOrder);
 
-        setTimeout(() => {
-            if (createdOrder?.id) {
-                router.push(`/order-success/${createdOrder.id}`);
-            } else {
-                router.push('/');
+            // Send order confirmation email
+            try {
+                await fetch('/api/send-order-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        orderNumber: preOrderNumber,
+                        customer: newOrder.customer,
+                        items: items.map(item => ({
+                            name: item.name,
+                            quantity: item.quantity,
+                            price: item.price,
+                            selectedFormat: item.selectedFormat,
+                            selectedFrame: item.selectedFrame
+                        })),
+                        total: total,
+                        shippingCost: shippingCost,
+                        paymentMethod: newOrder.paymentMethod
+                    })
+                });
+            } catch (emailError) {
+                console.error('Email send failed:', emailError);
+                // Continue even if email fails
             }
-        }, 1000);
+
+            clearCart();
+
+            setTimeout(() => {
+                if (createdOrder?.id) {
+                    router.push(`/order-success/${createdOrder.id}`);
+                } else {
+                    router.push('/');
+                }
+            }, 1000);
+        } catch (error) {
+            console.error('Error creating order:', error);
+            setIsSubmitting(false);
+        }
     };
 
     // Empty cart check
@@ -462,63 +493,68 @@ export default function CheckoutPage() {
 
                                     {/* Bank Account Details */}
                                     {paymentMethod === 'bank_transfer' && activeBankAccounts.length > 0 && (
-                                        <div className="bg-[#00E676]/5 border border-[#00E676]/20 rounded-xl p-5 space-y-4">
+                                        <div className="bg-[#00E676]/5 border border-[#00E676]/20 rounded-xl p-3 sm:p-5 space-y-3 sm:space-y-4">
                                             {/* Order Number Display */}
-                                            <div className="bg-white/5 border border-white/10 rounded-lg p-4">
+                                            <div className="bg-white/5 border border-white/10 rounded-lg p-3 sm:p-4">
                                                 <p className="text-sm text-white font-medium mb-2">Sipariş Numaranız</p>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-mono font-bold text-xl text-[#00E676] flex-1">{preOrderNumber}</span>
+                                                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                                                    <span className="font-mono font-bold text-lg sm:text-xl text-[#00E676] break-all">{preOrderNumber}</span>
                                                     <button
                                                         type="button"
                                                         onClick={() => {
                                                             navigator.clipboard.writeText(preOrderNumber);
                                                             toast.success('Sipariş no kopyalandı!');
                                                         }}
-                                                        className="px-3 py-1.5 bg-[#00E676] text-black text-xs font-medium rounded-lg hover:bg-[#00c853] transition-colors flex items-center gap-1"
+                                                        className="w-full sm:w-auto px-3 py-2 bg-[#00E676] text-black text-sm font-medium rounded-lg hover:bg-[#00c853] transition-colors flex items-center justify-center gap-1"
                                                     >
                                                         <Copy size={14} /> Kopyala
                                                     </button>
                                                 </div>
-                                                <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
-                                                    <AlertCircle size={14} />
-                                                    Havale açıklamasına bu numarayı yazmayı unutmayın!
+                                                <p className="text-xs text-gray-400 mt-2 flex items-start gap-1">
+                                                    <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
+                                                    <span>Havale açıklamasına bu numarayı yazmayı unutmayın!</span>
                                                 </p>
                                             </div>
 
                                             <p className="text-sm text-white font-medium">Aşağıdaki hesaplardan birine havale yapabilirsiniz:</p>
                                             {activeBankAccounts.map(account => (
-                                                <div key={account.id} className="bg-[#1a1a1a] rounded-lg p-4 border border-white/10 space-y-3">
+                                                <div key={account.id} className="bg-[#1a1a1a] rounded-lg p-3 sm:p-4 border border-white/10 space-y-3">
                                                     <p className="font-bold text-white">{account.bankName}</p>
 
                                                     {/* Account Holder with Copy */}
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="space-y-1">
                                                         <span className="text-sm text-gray-400">Hesap Sahibi:</span>
-                                                        <span className="font-medium text-white flex-1">{account.accountHolder}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(account.accountHolder);
-                                                                toast.success('Hesap sahibi kopyalandı!');
-                                                            }}
-                                                            className="px-2 py-1 bg-white/10 text-white text-xs font-medium rounded hover:bg-white/20 transition-colors flex items-center gap-1"
-                                                        >
-                                                            <Copy size={12} /> Kopyala
-                                                        </button>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-medium text-white text-sm flex-1">{account.accountHolder}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(account.accountHolder);
+                                                                    toast.success('Hesap sahibi kopyalandı!');
+                                                                }}
+                                                                className="px-2 py-1.5 bg-white/10 text-white text-xs font-medium rounded hover:bg-white/20 transition-colors flex items-center gap-1 flex-shrink-0"
+                                                            >
+                                                                <Copy size={12} />
+                                                            </button>
+                                                        </div>
                                                     </div>
 
                                                     {/* IBAN with Copy */}
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="font-mono text-sm bg-white/5 text-gray-300 p-2 rounded flex-1">{account.iban}</span>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => {
-                                                                navigator.clipboard.writeText(account.iban);
-                                                                toast.success('IBAN kopyalandı!');
-                                                            }}
-                                                            className="px-2 py-1 bg-[#00E676] text-black text-xs font-medium rounded hover:bg-[#00c853] transition-colors flex items-center gap-1"
-                                                        >
-                                                            <Copy size={12} /> Kopyala
-                                                        </button>
+                                                    <div className="space-y-1">
+                                                        <span className="text-sm text-gray-400">IBAN:</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-mono text-xs sm:text-sm bg-white/5 text-gray-300 p-2 rounded flex-1 break-all">{account.iban}</span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    navigator.clipboard.writeText(account.iban);
+                                                                    toast.success('IBAN kopyalandı!');
+                                                                }}
+                                                                className="px-2 py-1.5 bg-[#00E676] text-black text-xs font-medium rounded hover:bg-[#00c853] transition-colors flex items-center gap-1 flex-shrink-0"
+                                                            >
+                                                                <Copy size={12} />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -551,17 +587,17 @@ export default function CheckoutPage() {
                                         <button
                                             onClick={handleSubmit}
                                             disabled={isSubmitting}
-                                            className="flex-1 py-4 bg-[#00E676] text-black font-bold rounded-xl hover:bg-[#00c853] disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                                            className="flex-1 py-4 bg-[#00E676] text-black font-bold rounded-xl hover:bg-[#00c853] disabled:bg-gray-700 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
                                         >
                                             {isSubmitting ? (
                                                 <>
-                                                    <Loader2 size={20} className="animate-spin" />
-                                                    İşleniyor...
+                                                    <Loader2 size={18} className="animate-spin" />
+                                                    <span>İşleniyor...</span>
                                                 </>
                                             ) : (
                                                 <>
-                                                    <CheckCircle size={20} />
-                                                    Siparişi Tamamla ({total.toLocaleString('tr-TR')} TL)
+                                                    <CheckCircle size={18} />
+                                                    <span>Tamamla ({total.toLocaleString('tr-TR')} TL)</span>
                                                 </>
                                             )}
                                         </button>

@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 export interface BankAccount {
     id: string;
@@ -23,53 +25,69 @@ const defaultAccounts: BankAccount[] = [
 
 interface BankContextType {
     accounts: BankAccount[];
-    addAccount: (account: Omit<BankAccount, 'id'>) => void;
-    updateAccount: (id: string, updates: Partial<BankAccount>) => void;
-    deleteAccount: (id: string) => void;
+    addAccount: (account: Omit<BankAccount, 'id'>) => Promise<void>;
+    updateAccount: (id: string, updates: Partial<BankAccount>) => Promise<void>;
+    deleteAccount: (id: string) => Promise<void>;
     isLoading: boolean;
 }
 
 const BankContext = createContext<BankContextType | undefined>(undefined);
 
 export function BankProvider({ children }: { children: ReactNode }) {
-    const [accounts, setAccounts] = useState<BankAccount[]>(defaultAccounts);
+    const [accounts, setAccounts] = useState<BankAccount[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('bankAccounts');
-        if (saved) {
-            try {
-                setAccounts(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse bank accounts', e);
+        const banksRef = collection(db, 'banks');
+
+        const unsubscribe = onSnapshot(banksRef, (snapshot) => {
+            if (snapshot.empty) {
+                defaultAccounts.forEach(async (account) => {
+                    const { id, ...accountData } = account;
+                    await addDoc(banksRef, accountData);
+                });
+                setAccounts(defaultAccounts);
+            } else {
+                const accountsData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as BankAccount[];
+                setAccounts(accountsData);
             }
-        }
-        setIsLoading(false);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching bank accounts:', error);
+            setAccounts(defaultAccounts);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveAccounts = (newAccounts: BankAccount[]) => {
-        setAccounts(newAccounts);
-        localStorage.setItem('bankAccounts', JSON.stringify(newAccounts));
+    const addAccount = async (accountData: Omit<BankAccount, 'id'>) => {
+        try {
+            await addDoc(collection(db, 'banks'), accountData);
+        } catch (error) {
+            console.error('Error adding bank account:', error);
+        }
     };
 
-    const addAccount = (accountData: Omit<BankAccount, 'id'>) => {
-        const newAccount: BankAccount = {
-            ...accountData,
-            id: Date.now().toString(),
-        };
-        saveAccounts([...accounts, newAccount]);
+    const updateAccount = async (id: string, updates: Partial<BankAccount>) => {
+        try {
+            const bankRef = doc(db, 'banks', id);
+            await updateDoc(bankRef, updates);
+        } catch (error) {
+            console.error('Error updating bank account:', error);
+        }
     };
 
-    const updateAccount = (id: string, updates: Partial<BankAccount>) => {
-        const newAccounts = accounts.map(acc =>
-            acc.id === id ? { ...acc, ...updates } : acc
-        );
-        saveAccounts(newAccounts);
-    };
-
-    const deleteAccount = (id: string) => {
-        const newAccounts = accounts.filter(acc => acc.id !== id);
-        saveAccounts(newAccounts);
+    const deleteAccount = async (id: string) => {
+        try {
+            const bankRef = doc(db, 'banks', id);
+            await deleteDoc(bankRef);
+        } catch (error) {
+            console.error('Error deleting bank account:', error);
+        }
     };
 
     return (

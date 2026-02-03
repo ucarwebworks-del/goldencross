@@ -1,8 +1,8 @@
 'use client';
-
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 
-// Define the shape of our settings
 export interface SiteSettings {
     siteTitle: string;
     description: string;
@@ -16,24 +16,18 @@ export interface SiteSettings {
     facebookActive: boolean;
     twitter: string;
     twitterActive: boolean;
-
     whatsappActive: boolean;
     freeShippingLimit: number;
     shippingCost: number;
     currency: string;
     logo?: string;
     icon?: string;
-
-    // Homepage category section
     homepageCategoryTitle: string;
     homepageCategorySubtitle: string;
-
-    // Announcement bar
     announcementBarText: string;
     announcementBarActive: boolean;
 }
 
-// Default settings
 const defaultSettings: SiteSettings = {
     siteTitle: 'Golden Glass 777',
     description: "Türkiye'nin en büyük cam tablo mağazası.",
@@ -59,7 +53,7 @@ const defaultSettings: SiteSettings = {
 
 interface SettingsContextType {
     settings: SiteSettings;
-    updateSettings: (newSettings: Partial<SiteSettings>) => void;
+    updateSettings: (newSettings: Partial<SiteSettings>) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -69,27 +63,34 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const [settings, setSettings] = useState<SiteSettings>(defaultSettings);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Load from localStorage on mount
     useEffect(() => {
-        const savedSettings = localStorage.getItem('siteSettings');
-        if (savedSettings) {
-            try {
-                setSettings({ ...defaultSettings, ...JSON.parse(savedSettings) });
-            } catch (e) {
-                console.error('Failed to parse settings', e);
+        const settingsRef = doc(db, 'settings', 'site');
+
+        const unsubscribe = onSnapshot(settingsRef, async (snapshot) => {
+            if (!snapshot.exists()) {
+                await setDoc(settingsRef, defaultSettings);
+                setSettings(defaultSettings);
+            } else {
+                setSettings({ ...defaultSettings, ...snapshot.data() } as SiteSettings);
             }
-        }
-        setIsLoading(false);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching settings:', error);
+            setSettings(defaultSettings);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const updateSettings = (newSettings: Partial<SiteSettings>) => {
-        setSettings(prev => {
-            const updated = { ...prev, ...newSettings };
-            localStorage.setItem('siteSettings', JSON.stringify(updated));
-            // Trigger a custom event for immediate updates across tabs if needed, 
-            // but React state handles current tab.
-            return updated;
-        });
+    const updateSettings = async (newSettings: Partial<SiteSettings>) => {
+        try {
+            const settingsRef = doc(db, 'settings', 'site');
+            const updated = { ...settings, ...newSettings };
+            await setDoc(settingsRef, updated);
+        } catch (error) {
+            console.error('Error updating settings:', error);
+        }
     };
 
     return (

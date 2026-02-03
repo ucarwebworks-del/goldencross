@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Message {
     id: string;
@@ -10,22 +12,11 @@ export interface Message {
     isRead: boolean;
 }
 
-const defaultMessages: Message[] = [
-    {
-        id: '1',
-        name: 'Ahmet Yılmaz',
-        email: 'ahmet@example.com',
-        message: 'Merhaba, özel ölçü siparişi verebiliyor muyuz?',
-        date: new Date().toISOString(),
-        isRead: false
-    }
-];
-
 interface MessageContextType {
     messages: Message[];
-    addMessage: (message: Omit<Message, 'id' | 'date' | 'isRead'>) => void;
-    markAsRead: (id: string) => void;
-    deleteMessage: (id: string) => void;
+    addMessage: (message: Omit<Message, 'id' | 'date' | 'isRead'>) => Promise<void>;
+    markAsRead: (id: string) => Promise<void>;
+    deleteMessage: (id: string) => Promise<void>;
     unreadCount: number;
     isLoading: boolean;
 }
@@ -33,46 +24,57 @@ interface MessageContextType {
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
 
 export function MessageProvider({ children }: { children: ReactNode }) {
-    const [messages, setMessages] = useState<Message[]>(defaultMessages);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('messages');
-        if (saved) {
-            try {
-                setMessages(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse messages', e);
-            }
-        }
-        setIsLoading(false);
+        const messagesRef = collection(db, 'messages');
+
+        const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
+            const messagesData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Message[];
+            // Sort by date descending
+            messagesData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setMessages(messagesData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching messages:', error);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveMessages = (newMessages: Message[]) => {
-        setMessages(newMessages);
-        localStorage.setItem('messages', JSON.stringify(newMessages));
+    const addMessage = async (messageData: Omit<Message, 'id' | 'date' | 'isRead'>) => {
+        try {
+            await addDoc(collection(db, 'messages'), {
+                ...messageData,
+                date: new Date().toISOString(),
+                isRead: false
+            });
+        } catch (error) {
+            console.error('Error adding message:', error);
+        }
     };
 
-    const addMessage = (messageData: Omit<Message, 'id' | 'date' | 'isRead'>) => {
-        const newMessage: Message = {
-            ...messageData,
-            id: Date.now().toString(),
-            date: new Date().toISOString(),
-            isRead: false
-        };
-        saveMessages([newMessage, ...messages]);
+    const markAsRead = async (id: string) => {
+        try {
+            const messageRef = doc(db, 'messages', id);
+            await updateDoc(messageRef, { isRead: true });
+        } catch (error) {
+            console.error('Error marking message as read:', error);
+        }
     };
 
-    const markAsRead = (id: string) => {
-        const newMessages = messages.map(msg =>
-            msg.id === id ? { ...msg, isRead: true } : msg
-        );
-        saveMessages(newMessages);
-    };
-
-    const deleteMessage = (id: string) => {
-        const newMessages = messages.filter(msg => msg.id !== id);
-        saveMessages(newMessages);
+    const deleteMessage = async (id: string) => {
+        try {
+            const messageRef = doc(db, 'messages', id);
+            await deleteDoc(messageRef);
+        } catch (error) {
+            console.error('Error deleting message:', error);
+        }
     };
 
     const unreadCount = messages.filter(m => !m.isRead).length;

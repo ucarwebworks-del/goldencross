@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Product {
     id: string;
@@ -8,17 +10,17 @@ export interface Product {
     price: number;
     oldPrice?: number;
     stock: number;
-    category: string; // Category Slug
+    category: string;
     description: string;
     images: string[];
     status: 'Active' | 'Draft' | 'OutOfStock';
     isFeatured?: boolean;
     isBestseller?: boolean;
     isNew?: boolean;
-    isActive?: boolean; // Ürün aktif/pasif durumu
-    note?: string; // Admin notu
-    allowCustomerUpload?: boolean; // Müşteri fotoğraf yükleyebilir
-    allowCustomerNote?: boolean; // Müşteri not ekleyebilir
+    isActive?: boolean;
+    note?: string;
+    allowCustomerUpload?: boolean;
+    allowCustomerNote?: boolean;
     technicalSpecs?: string;
     options?: ProductOption[];
 }
@@ -30,7 +32,7 @@ export interface ProductOptionValue {
 
 export interface ProductOption {
     id: string;
-    name: string; // e.g., "Size", "Frame"
+    name: string;
     values: ProductOptionValue[];
 }
 
@@ -99,9 +101,9 @@ const defaultProducts: Product[] = [
 
 interface ProductContextType {
     products: Product[];
-    addProduct: (product: Omit<Product, 'id'>) => void;
-    updateProduct: (id: string, updates: Partial<Product>) => void;
-    deleteProduct: (id: string) => void;
+    addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+    updateProduct: (id: string, updates: Partial<Product>) => Promise<void>;
+    deleteProduct: (id: string) => Promise<void>;
     getProduct: (id: string) => Product | undefined;
     getProductsByCategory: (categorySlug: string) => Product[];
     isLoading: boolean;
@@ -110,60 +112,61 @@ interface ProductContextType {
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 export function ProductProvider({ children }: { children: ReactNode }) {
-    const [products, setProducts] = useState<Product[]>(defaultProducts);
+    const [products, setProducts] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('products');
-        if (saved) {
-            try {
-                setProducts(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse products', e);
+        const productsRef = collection(db, 'products');
+
+        const unsubscribe = onSnapshot(productsRef, (snapshot) => {
+            if (snapshot.empty) {
+                // Initialize with default products if collection is empty
+                defaultProducts.forEach(async (product) => {
+                    const { id, ...productData } = product;
+                    await addDoc(productsRef, { ...productData, originalId: id });
+                });
+                setProducts(defaultProducts);
+            } else {
+                const productsData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Product[];
+                setProducts(productsData);
             }
-        }
-        setIsLoading(false);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching products:', error);
+            setProducts(defaultProducts);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveProducts = (newProducts: Product[]) => {
-        setProducts(newProducts);
+    const addProduct = async (productData: Omit<Product, 'id'>) => {
         try {
-            localStorage.setItem('products', JSON.stringify(newProducts));
-        } catch (e) {
-            // If quota exceeded, try to save without base64 images
-            console.warn('LocalStorage quota exceeded, saving minimal data');
-            const minimalProducts = newProducts.map(p => ({
-                ...p,
-                images: p.images?.map(img =>
-                    img.startsWith('data:') ? '' : img // Remove base64 images
-                ).filter(Boolean) || []
-            }));
-            try {
-                localStorage.setItem('products', JSON.stringify(minimalProducts));
-            } catch {
-                console.error('Failed to save products to localStorage');
-            }
+            await addDoc(collection(db, 'products'), productData);
+        } catch (error) {
+            console.error('Error adding product:', error);
         }
     };
 
-    const addProduct = (productData: Omit<Product, 'id'>) => {
-        const newProduct: Product = {
-            ...productData,
-            id: Date.now().toString(),
-        };
-        saveProducts([...products, newProduct]);
+    const updateProduct = async (id: string, updates: Partial<Product>) => {
+        try {
+            const productRef = doc(db, 'products', id);
+            await updateDoc(productRef, updates);
+        } catch (error) {
+            console.error('Error updating product:', error);
+        }
     };
 
-    const updateProduct = (id: string, updates: Partial<Product>) => {
-        const newProducts = products.map(p =>
-            p.id === id ? { ...p, ...updates } : p
-        );
-        saveProducts(newProducts);
-    };
-
-    const deleteProduct = (id: string) => {
-        const newProducts = products.filter(p => p.id !== id);
-        saveProducts(newProducts);
+    const deleteProduct = async (id: string) => {
+        try {
+            const productRef = doc(db, 'products', id);
+            await deleteDoc(productRef);
+        } catch (error) {
+            console.error('Error deleting product:', error);
+        }
     };
 
     const getProduct = (id: string) => products.find(p => p.id === id);

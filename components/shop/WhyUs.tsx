@@ -1,4 +1,6 @@
-import { ShieldCheck, Truck, RotateCcw, Award } from 'lucide-react';
+'use client';
+import { useRef } from 'react';
+import { ShieldCheck, Truck, RotateCcw, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const FEATURES = [
     {
@@ -24,10 +26,23 @@ const FEATURES = [
 ];
 
 export default function WhyUs() {
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    const scroll = (direction: 'left' | 'right') => {
+        if (scrollRef.current) {
+            const scrollAmount = 280;
+            scrollRef.current.scrollBy({
+                left: direction === 'left' ? -scrollAmount : scrollAmount,
+                behavior: 'smooth'
+            });
+        }
+    };
+
     return (
         <section className="section border-t border-white/10">
             <div className="container">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                {/* Desktop: Grid layout */}
+                <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-8">
                     {FEATURES.map((feature, idx) => (
                         <div key={idx} className="flex gap-4 items-start p-4 rounded-xl hover:bg-white/5 transition-colors">
                             <div className="bg-white/10 text-accent p-3 rounded-lg">
@@ -41,6 +56,36 @@ export default function WhyUs() {
                             </div>
                         </div>
                     ))}
+                </div>
+
+                {/* Mobile: Horizontal scroll */}
+                <div className="md:hidden relative">
+                    <div
+                        ref={scrollRef}
+                        className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 snap-x snap-mandatory -mx-4 px-4"
+                    >
+                        {FEATURES.map((feature, idx) => (
+                            <div
+                                key={idx}
+                                className="flex-shrink-0 w-64 bg-white/5 p-5 rounded-xl snap-start"
+                            >
+                                <div className="bg-white/10 text-accent p-3 rounded-lg w-fit mb-4">
+                                    <feature.icon size={24} strokeWidth={1.5} />
+                                </div>
+                                <h3 className="font-bold text-lg mb-2 text-white">{feature.title}</h3>
+                                <p className="text-sm text-gray-400 leading-relaxed">
+                                    {feature.desc}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Scroll indicator dots */}
+                    <div className="flex justify-center gap-2 mt-2">
+                        {FEATURES.map((_, idx) => (
+                            <div key={idx} className="w-2 h-2 rounded-full bg-white/20" />
+                        ))}
+                    </div>
                 </div>
             </div>
         </section>

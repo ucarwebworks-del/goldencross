@@ -1,41 +1,39 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
 
 export interface BlogPost {
     id: string;
     title: string;
     slug: string;
-    excerpt: string; // Kısa açıklama
-    content: string; // HTML içerik
-    image: string; // Kapak görseli
+    excerpt: string;
+    content: string;
+    image: string;
     author: string;
-    publishedAt: string; // ISO date string
+    publishedAt: string;
     isPublished: boolean;
-    // SEO
     metaTitle?: string;
     metaDescription?: string;
     metaKeywords?: string;
-    // Kategoriler
     category?: string;
     tags?: string[];
-    // İstatistik
     views?: number;
 }
 
 interface BlogContextType {
     posts: BlogPost[];
-    addPost: (post: Omit<BlogPost, 'id'>) => void;
-    updatePost: (id: string, post: Partial<BlogPost>) => void;
-    deletePost: (id: string) => void;
+    addPost: (post: Omit<BlogPost, 'id'>) => Promise<void>;
+    updatePost: (id: string, post: Partial<BlogPost>) => Promise<void>;
+    deletePost: (id: string) => Promise<void>;
     getPost: (id: string) => BlogPost | undefined;
     getPostBySlug: (slug: string) => BlogPost | undefined;
     getPublishedPosts: () => BlogPost[];
     isLoading: boolean;
-    // Blog ayarları
     blogEnabled: boolean;
-    setBlogEnabled: (enabled: boolean) => void;
+    setBlogEnabled: (enabled: boolean) => Promise<void>;
     blogTitle: string;
-    setBlogTitle: (title: string) => void;
+    setBlogTitle: (title: string) => Promise<void>;
 }
 
 const BlogContext = createContext<BlogContextType | undefined>(undefined);
@@ -79,78 +77,93 @@ export function BlogProvider({ children }: { children: ReactNode }) {
     const [blogEnabled, setBlogEnabledState] = useState(true);
     const [blogTitle, setBlogTitleState] = useState('Blog');
 
-    // Load from localStorage
     useEffect(() => {
-        const savedPosts = localStorage.getItem('blogPosts');
-        const savedSettings = localStorage.getItem('blogSettings');
+        const postsRef = collection(db, 'blog');
+        const settingsRef = doc(db, 'settings', 'blog');
 
-        if (savedPosts) {
-            try {
-                setPosts(JSON.parse(savedPosts));
-            } catch (e) {
+        const unsubscribePosts = onSnapshot(postsRef, (snapshot) => {
+            if (snapshot.empty) {
+                defaultPosts.forEach(async (post) => {
+                    const { id, ...postData } = post;
+                    await addDoc(postsRef, postData);
+                });
                 setPosts(defaultPosts);
+            } else {
+                const postsData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as BlogPost[];
+                postsData.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+                setPosts(postsData);
             }
-        } else {
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching blog posts:', error);
             setPosts(defaultPosts);
-        }
+            setIsLoading(false);
+        });
 
-        if (savedSettings) {
-            try {
-                const settings = JSON.parse(savedSettings);
-                setBlogEnabledState(settings.enabled ?? true);
-                setBlogTitleState(settings.title ?? 'Blog');
-            } catch (e) {
-                // Use defaults
+        const unsubscribeSettings = onSnapshot(settingsRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.data();
+                setBlogEnabledState(data.enabled ?? true);
+                setBlogTitleState(data.title ?? 'Blog');
             }
-        }
+        });
 
-        setIsLoading(false);
+        return () => {
+            unsubscribePosts();
+            unsubscribeSettings();
+        };
     }, []);
 
-    // Persist posts
-    useEffect(() => {
-        if (!isLoading) {
-            localStorage.setItem('blogPosts', JSON.stringify(posts));
+    const addPost = async (post: Omit<BlogPost, 'id'>) => {
+        try {
+            await addDoc(collection(db, 'blog'), { ...post, views: 0 });
+        } catch (error) {
+            console.error('Error adding blog post:', error);
         }
-    }, [posts, isLoading]);
-
-    // Persist settings
-    useEffect(() => {
-        if (!isLoading) {
-            localStorage.setItem('blogSettings', JSON.stringify({
-                enabled: blogEnabled,
-                title: blogTitle
-            }));
-        }
-    }, [blogEnabled, blogTitle, isLoading]);
-
-    const addPost = (post: Omit<BlogPost, 'id'>) => {
-        const newPost: BlogPost = {
-            ...post,
-            id: Date.now().toString(),
-            views: 0
-        };
-        setPosts(prev => [newPost, ...prev]);
     };
 
-    const updatePost = (id: string, data: Partial<BlogPost>) => {
-        setPosts(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+    const updatePost = async (id: string, data: Partial<BlogPost>) => {
+        try {
+            const postRef = doc(db, 'blog', id);
+            await updateDoc(postRef, data);
+        } catch (error) {
+            console.error('Error updating blog post:', error);
+        }
     };
 
-    const deletePost = (id: string) => {
-        setPosts(prev => prev.filter(p => p.id !== id));
+    const deletePost = async (id: string) => {
+        try {
+            const postRef = doc(db, 'blog', id);
+            await deleteDoc(postRef);
+        } catch (error) {
+            console.error('Error deleting blog post:', error);
+        }
     };
 
     const getPost = (id: string) => posts.find(p => p.id === id);
-
     const getPostBySlug = (slug: string) => posts.find(p => p.slug === slug);
+    const getPublishedPosts = () => posts.filter(p => p.isPublished);
 
-    const getPublishedPosts = () => posts.filter(p => p.isPublished).sort((a, b) =>
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-    );
+    const setBlogEnabled = async (enabled: boolean) => {
+        try {
+            await setDoc(doc(db, 'settings', 'blog'), { enabled, title: blogTitle }, { merge: true });
+            setBlogEnabledState(enabled);
+        } catch (error) {
+            console.error('Error updating blog settings:', error);
+        }
+    };
 
-    const setBlogEnabled = (enabled: boolean) => setBlogEnabledState(enabled);
-    const setBlogTitle = (title: string) => setBlogTitleState(title);
+    const setBlogTitle = async (title: string) => {
+        try {
+            await setDoc(doc(db, 'settings', 'blog'), { enabled: blogEnabled, title }, { merge: true });
+            setBlogTitleState(title);
+        } catch (error) {
+            console.error('Error updating blog settings:', error);
+        }
+    };
 
     return (
         <BlogContext.Provider value={{

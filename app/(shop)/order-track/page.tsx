@@ -79,9 +79,9 @@ export default function OrderTrackPage() {
                 </div>
 
                 {/* Search Box */}
-                <div className="bg-[#1a1a1a] rounded-2xl shadow-sm border border-white/10 p-6 mb-8">
+                <div className="bg-[#1a1a1a] rounded-2xl shadow-sm border border-white/10 p-4 sm:p-6 mb-8">
                     <label className="block text-sm font-medium mb-2 text-white">Sipariş Numarası</label>
-                    <div className="flex gap-3">
+                    <div className="flex flex-col sm:flex-row gap-3">
                         <div className="relative flex-1">
                             <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                             <input
@@ -90,12 +90,12 @@ export default function OrderTrackPage() {
                                 onChange={(e) => setOrderNumber(e.target.value.toUpperCase())}
                                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                                 placeholder="Örn: GG-1234567890"
-                                className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:border-white/30 focus:ring-2 focus:ring-white/10 transition-all outline-none font-mono uppercase text-lg"
+                                className="w-full pl-12 pr-4 py-3 sm:py-4 bg-white/5 border border-white/10 text-white placeholder:text-gray-600 rounded-xl focus:border-white/30 focus:ring-2 focus:ring-white/10 transition-all outline-none font-mono uppercase text-base sm:text-lg"
                             />
                         </div>
                         <button
                             onClick={handleSearch}
-                            className="px-8 py-4 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors"
+                            className="w-full sm:w-auto px-8 py-3 sm:py-4 bg-white text-black font-bold rounded-xl hover:bg-gray-200 transition-colors"
                         >
                             Sorgula
                         </button>

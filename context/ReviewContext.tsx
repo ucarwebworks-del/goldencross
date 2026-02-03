@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Review {
     id: string;
@@ -14,10 +16,10 @@ export interface Review {
 
 interface ReviewContextType {
     reviews: Review[];
-    addReview: (review: Omit<Review, 'id' | 'isApproved' | 'createdAt'>) => void;
-    approveReview: (id: string) => void;
-    rejectReview: (id: string) => void;
-    deleteReview: (id: string) => void;
+    addReview: (review: Omit<Review, 'id' | 'isApproved' | 'createdAt'>) => Promise<void>;
+    approveReview: (id: string) => Promise<void>;
+    rejectReview: (id: string) => Promise<void>;
+    deleteReview: (id: string) => Promise<void>;
     getProductReviews: (productId: string) => Review[];
     getProductRating: (productId: string) => { average: number; count: number };
     pendingCount: number;
@@ -31,45 +33,60 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('reviews');
-        if (saved) {
-            try {
-                setReviews(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse reviews', e);
-            }
-        }
-        setIsLoading(false);
+        const reviewsRef = collection(db, 'reviews');
+
+        const unsubscribe = onSnapshot(reviewsRef, (snapshot) => {
+            const reviewsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Review[];
+            setReviews(reviewsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching reviews:', error);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveReviews = (newReviews: Review[]) => {
-        setReviews(newReviews);
-        localStorage.setItem('reviews', JSON.stringify(newReviews));
+    const addReview = async (reviewData: Omit<Review, 'id' | 'isApproved' | 'createdAt'>) => {
+        try {
+            await addDoc(collection(db, 'reviews'), {
+                ...reviewData,
+                isApproved: false,
+                createdAt: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error adding review:', error);
+        }
     };
 
-    const addReview = (reviewData: Omit<Review, 'id' | 'isApproved' | 'createdAt'>) => {
-        const newReview: Review = {
-            ...reviewData,
-            id: Date.now().toString(),
-            isApproved: false,
-            createdAt: new Date().toISOString()
-        };
-        saveReviews([...reviews, newReview]);
+    const approveReview = async (id: string) => {
+        try {
+            const reviewRef = doc(db, 'reviews', id);
+            await updateDoc(reviewRef, { isApproved: true });
+        } catch (error) {
+            console.error('Error approving review:', error);
+        }
     };
 
-    const approveReview = (id: string) => {
-        const updated = reviews.map(r => r.id === id ? { ...r, isApproved: true } : r);
-        saveReviews(updated);
+    const rejectReview = async (id: string) => {
+        try {
+            const reviewRef = doc(db, 'reviews', id);
+            await updateDoc(reviewRef, { isApproved: false });
+        } catch (error) {
+            console.error('Error rejecting review:', error);
+        }
     };
 
-    const rejectReview = (id: string) => {
-        const updated = reviews.map(r => r.id === id ? { ...r, isApproved: false } : r);
-        saveReviews(updated);
-    };
-
-    const deleteReview = (id: string) => {
-        const updated = reviews.filter(r => r.id !== id);
-        saveReviews(updated);
+    const deleteReview = async (id: string) => {
+        try {
+            const reviewRef = doc(db, 'reviews', id);
+            await deleteDoc(reviewRef);
+        } catch (error) {
+            console.error('Error deleting review:', error);
+        }
     };
 
     const getProductReviews = (productId: string): Review[] => {

@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Coupon {
     id: string;
@@ -16,11 +18,11 @@ export interface Coupon {
 
 interface CouponContextType {
     coupons: Coupon[];
-    addCoupon: (coupon: Omit<Coupon, 'id' | 'usedCount' | 'createdAt'>) => void;
-    updateCoupon: (id: string, updates: Partial<Coupon>) => void;
-    deleteCoupon: (id: string) => void;
+    addCoupon: (coupon: Omit<Coupon, 'id' | 'usedCount' | 'createdAt'>) => Promise<void>;
+    updateCoupon: (id: string, updates: Partial<Coupon>) => Promise<void>;
+    deleteCoupon: (id: string) => Promise<void>;
     validateCoupon: (code: string, orderTotal: number) => { valid: boolean; error?: string; coupon?: Coupon };
-    applyCoupon: (code: string) => void;
+    applyCoupon: (code: string) => Promise<void>;
     isLoading: boolean;
 }
 
@@ -31,40 +33,51 @@ export function CouponProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('coupons');
-        if (saved) {
-            try {
-                setCoupons(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse coupons', e);
-            }
-        }
-        setIsLoading(false);
+        const couponsRef = collection(db, 'coupons');
+
+        const unsubscribe = onSnapshot(couponsRef, (snapshot) => {
+            const couponsData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Coupon[];
+            setCoupons(couponsData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching coupons:', error);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveCoupons = (newCoupons: Coupon[]) => {
-        setCoupons(newCoupons);
-        localStorage.setItem('coupons', JSON.stringify(newCoupons));
+    const addCoupon = async (couponData: Omit<Coupon, 'id' | 'usedCount' | 'createdAt'>) => {
+        try {
+            await addDoc(collection(db, 'coupons'), {
+                ...couponData,
+                usedCount: 0,
+                createdAt: new Date().toISOString()
+            });
+        } catch (error) {
+            console.error('Error adding coupon:', error);
+        }
     };
 
-    const addCoupon = (couponData: Omit<Coupon, 'id' | 'usedCount' | 'createdAt'>) => {
-        const newCoupon: Coupon = {
-            ...couponData,
-            id: Date.now().toString(),
-            usedCount: 0,
-            createdAt: new Date().toISOString()
-        };
-        saveCoupons([...coupons, newCoupon]);
+    const updateCoupon = async (id: string, updates: Partial<Coupon>) => {
+        try {
+            const couponRef = doc(db, 'coupons', id);
+            await updateDoc(couponRef, updates);
+        } catch (error) {
+            console.error('Error updating coupon:', error);
+        }
     };
 
-    const updateCoupon = (id: string, updates: Partial<Coupon>) => {
-        const newCoupons = coupons.map(c => c.id === id ? { ...c, ...updates } : c);
-        saveCoupons(newCoupons);
-    };
-
-    const deleteCoupon = (id: string) => {
-        const newCoupons = coupons.filter(c => c.id !== id);
-        saveCoupons(newCoupons);
+    const deleteCoupon = async (id: string) => {
+        try {
+            const couponRef = doc(db, 'coupons', id);
+            await deleteDoc(couponRef);
+        } catch (error) {
+            console.error('Error deleting coupon:', error);
+        }
     };
 
     const validateCoupon = (code: string, orderTotal: number): { valid: boolean; error?: string; coupon?: Coupon } => {
@@ -93,10 +106,10 @@ export function CouponProvider({ children }: { children: ReactNode }) {
         return { valid: true, coupon };
     };
 
-    const applyCoupon = (code: string) => {
+    const applyCoupon = async (code: string) => {
         const coupon = coupons.find(c => c.code.toLowerCase() === code.toLowerCase());
         if (coupon) {
-            updateCoupon(coupon.id, { usedCount: coupon.usedCount + 1 });
+            await updateCoupon(coupon.id, { usedCount: coupon.usedCount + 1 });
         }
     };
 

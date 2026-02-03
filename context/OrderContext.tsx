@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { CartItem } from './CartContext';
 
 export interface Order {
@@ -26,8 +28,8 @@ export interface Order {
 
 interface OrderContextType {
     orders: Order[];
-    addOrder: (order: Omit<Order, 'id' | 'date' | 'status'> & { orderNumber?: string }) => Order;
-    updateOrderStatus: (id: string, status: Order['status']) => void;
+    addOrder: (order: Omit<Order, 'id' | 'date' | 'status'> & { orderNumber?: string }) => Promise<Order>;
+    updateOrderStatus: (id: string, status: Order['status']) => Promise<void>;
     getOrder: (id: string) => Order | undefined;
     isLoading: boolean;
 }
@@ -39,43 +41,57 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('orders');
-        if (saved) {
-            try {
-                setOrders(JSON.parse(saved));
-            } catch (e) {
-                console.error('Failed to parse orders', e);
-            }
-        }
-        setIsLoading(false);
+        const ordersRef = collection(db, 'orders');
+
+        const unsubscribe = onSnapshot(ordersRef, (snapshot) => {
+            const ordersData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            })) as Order[];
+            // Sort by date descending
+            ordersData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setOrders(ordersData);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching orders:', error);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveOrders = (newOrders: Order[]) => {
-        setOrders(newOrders);
-        localStorage.setItem('orders', JSON.stringify(newOrders));
-    };
-
-    const addOrder = (orderData: Omit<Order, 'id' | 'date' | 'status'> & { orderNumber?: string }) => {
+    const addOrder = async (orderData: Omit<Order, 'id' | 'date' | 'status'> & { orderNumber?: string }): Promise<Order> => {
         const orderNum = orderData.orderNumber || `GG-${Date.now()}`;
-        const newOrder: Order = {
+        const newOrderData = {
             ...orderData,
-            id: orderNum,
             orderNumber: orderNum,
             date: new Date().toLocaleString('tr-TR'),
-            status: 'Hazırlanıyor'
+            status: 'Hazırlanıyor' as const
         };
-        saveOrders([newOrder, ...orders]);
-        return newOrder;
+
+        try {
+            const docRef = await addDoc(collection(db, 'orders'), newOrderData);
+            const newOrder: Order = {
+                ...newOrderData,
+                id: docRef.id
+            };
+            return newOrder;
+        } catch (error) {
+            console.error('Error adding order:', error);
+            throw error;
+        }
     };
 
-    const updateOrderStatus = (id: string, status: Order['status']) => {
-        const newOrders = orders.map(o =>
-            o.id === id ? { ...o, status } : o
-        );
-        saveOrders(newOrders);
+    const updateOrderStatus = async (id: string, status: Order['status']) => {
+        try {
+            const orderRef = doc(db, 'orders', id);
+            await updateDoc(orderRef, { status });
+        } catch (error) {
+            console.error('Error updating order status:', error);
+        }
     };
 
-    const getOrder = (id: string) => orders.find(o => o.id === id);
+    const getOrder = (id: string) => orders.find(o => o.id === id || o.orderNumber === id);
 
     return (
         <OrderContext.Provider value={{ orders, addOrder, updateOrderStatus, getOrder, isLoading }}>

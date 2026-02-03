@@ -1,8 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function ProductGallery({ images }: { images: string[] }) {
     const [selected, setSelected] = useState(0);
+    const scrollRef = useRef<HTMLDivElement>(null);
 
     if (!images || images.length === 0) {
         return (
@@ -12,17 +14,78 @@ export default function ProductGallery({ images }: { images: string[] }) {
         );
     }
 
+    const handleSwipe = (direction: 'left' | 'right') => {
+        if (direction === 'left' && selected < images.length - 1) {
+            setSelected(selected + 1);
+        } else if (direction === 'right' && selected > 0) {
+            setSelected(selected - 1);
+        }
+    };
+
     return (
-        <div className="flex flex-col-reverse lg:flex-row gap-4 sticky top-24">
-            {/* Thumbnails (Left on desktop, Bottom on mobile) */}
-            <div className="flex lg:flex-col gap-2 lg:gap-4 overflow-x-auto lg:overflow-y-auto lg:max-h-[600px] scrollbar-hide pb-2 lg:pb-0">
+        <div className="flex flex-col gap-4">
+            {/* Main Image - Swipeable on mobile */}
+            <div className="relative flex-1 aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden shadow-sm">
+                {(images[selected].startsWith('data:video') || images[selected].match(/\.(mp4|webm|ogg)$/i)) ? (
+                    <video
+                        src={images[selected]}
+                        controls
+                        autoPlay
+                        loop
+                        className="w-full h-full object-cover"
+                    />
+                ) : (
+                    <img
+                        src={images[selected]}
+                        alt="Product Detail"
+                        className="w-full h-full object-cover mix-blend-multiply transition-opacity duration-300"
+                    />
+                )}
+
+                {/* Navigation arrows for mobile */}
+                {images.length > 1 && (
+                    <>
+                        <button
+                            onClick={() => handleSwipe('right')}
+                            disabled={selected === 0}
+                            className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/70 transition-colors"
+                        >
+                            <ChevronLeft size={24} />
+                        </button>
+                        <button
+                            onClick={() => handleSwipe('left')}
+                            disabled={selected === images.length - 1}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/50 text-white rounded-full flex items-center justify-center disabled:opacity-30 hover:bg-black/70 transition-colors"
+                        >
+                            <ChevronRight size={24} />
+                        </button>
+
+                        {/* Dots indicator */}
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                            {images.map((_, idx) => (
+                                <button
+                                    key={idx}
+                                    onClick={() => setSelected(idx)}
+                                    className={`w-2.5 h-2.5 rounded-full transition-all ${selected === idx ? 'bg-white w-6' : 'bg-white/50'}`}
+                                />
+                            ))}
+                        </div>
+                    </>
+                )}
+            </div>
+
+            {/* Thumbnails - Horizontal scroll */}
+            <div
+                ref={scrollRef}
+                className="flex gap-2 overflow-x-auto scrollbar-hide pb-2"
+            >
                 {images.map((img, idx) => {
                     const isVideo = img.startsWith('data:video') || img.match(/\.(mp4|webm|ogg)$/i);
                     return (
                         <button
                             key={idx}
                             onClick={() => setSelected(idx)}
-                            className={`relative w-14 h-14 sm:w-20 sm:h-20 lg:w-24 lg:h-24 flex-shrink-0 border-2 rounded-lg overflow-hidden transition-all ${selected === idx ? 'border-black' : 'border-transparent hover:border-gray-200'
+                            className={`relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 border-2 rounded-lg overflow-hidden transition-all ${selected === idx ? 'border-[#00E676]' : 'border-transparent hover:border-gray-200'
                                 }`}
                         >
                             {isVideo ? (
@@ -44,28 +107,6 @@ export default function ProductGallery({ images }: { images: string[] }) {
                         </button>
                     );
                 })}
-            </div>
-
-            {/* Main Image */}
-            <div className="relative flex-1 aspect-[4/5] bg-gray-50 rounded-2xl overflow-hidden shadow-sm">
-                {(images[selected].startsWith('data:video') || images[selected].match(/\.(mp4|webm|ogg)$/i)) ? (
-                    <video
-                        src={images[selected]}
-                        controls
-                        autoPlay
-                        loop
-                        className="w-full h-full object-cover"
-                    />
-                ) : (
-                    <img
-                        src={images[selected]}
-                        alt="Product Detail"
-                        className="w-full h-full object-cover mix-blend-multiply transition-opacity duration-300"
-                    />
-                )}
-                <div className="absolute top-4 left-4 bg-[#00E676] text-black px-3 py-1 rounded-full text-xs font-bold">
-                    %20 İndirim
-                </div>
             </div>
         </div>
     );

@@ -1,5 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 
 export interface Category {
     id: string;
@@ -11,7 +13,6 @@ export interface Category {
     order: number;
 }
 
-// Initial mock data
 const defaultCategories: Category[] = [
     { id: '1', name: 'Modern Art', slug: 'modern', image: 'https://images.unsplash.com/photo-1549887552-93f8efb87228?auto=format&fit=crop&q=80&w=300', order: 0 },
     { id: '2', name: 'Nature', slug: 'nature', image: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&q=80&w=300', order: 1 },
@@ -23,18 +24,16 @@ const defaultCategories: Category[] = [
 
 interface CategoryContextType {
     categories: Category[];
-    addCategory: (category: Omit<Category, 'id' | 'order'>) => void;
-    updateCategory: (id: string, updates: Partial<Category>) => void;
-    deleteCategory: (id: string) => void;
-    reorderCategory: (id: string, direction: 'up' | 'down' | 'left' | 'right') => void;
+    addCategory: (category: Omit<Category, 'id' | 'order'>) => Promise<void>;
+    updateCategory: (id: string, updates: Partial<Category>) => Promise<void>;
+    deleteCategory: (id: string) => Promise<void>;
+    reorderCategory: (id: string, direction: 'up' | 'down' | 'left' | 'right') => Promise<void>;
     isLoading: boolean;
 }
 
 const CategoryContext = createContext<CategoryContextType | undefined>(undefined);
 
-// Helper to ensure all categories have order field
 function ensureOrder(cats: Category[]): Category[] {
-    // Group by parent_id
     const grouped: Record<string, Category[]> = {};
     cats.forEach(c => {
         const key = c.parent_id || 'root';
@@ -42,7 +41,6 @@ function ensureOrder(cats: Category[]): Category[] {
         grouped[key].push(c);
     });
 
-    // Assign order if missing
     const result: Category[] = [];
     Object.values(grouped).forEach(group => {
         group.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
@@ -55,66 +53,74 @@ function ensureOrder(cats: Category[]): Category[] {
 }
 
 export function CategoryProvider({ children }: { children: ReactNode }) {
-    const [categories, setCategories] = useState<Category[]>(defaultCategories);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const saved = localStorage.getItem('categories');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                const withOrder = ensureOrder(parsed);
-                setCategories(withOrder);
-                // Save back if we added order fields
-                if (JSON.stringify(parsed) !== JSON.stringify(withOrder)) {
-                    localStorage.setItem('categories', JSON.stringify(withOrder));
-                }
-            } catch (e) {
-                console.error('Failed to parse categories', e);
+        const categoriesRef = collection(db, 'categories');
+
+        const unsubscribe = onSnapshot(categoriesRef, (snapshot) => {
+            if (snapshot.empty) {
+                defaultCategories.forEach(async (category) => {
+                    const { id, ...categoryData } = category;
+                    await addDoc(categoriesRef, { ...categoryData, originalId: id });
+                });
+                setCategories(defaultCategories);
+            } else {
+                const categoriesData = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })) as Category[];
+                setCategories(ensureOrder(categoriesData));
             }
-        }
-        setIsLoading(false);
+            setIsLoading(false);
+        }, (error) => {
+            console.error('Error fetching categories:', error);
+            setCategories(defaultCategories);
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
     }, []);
 
-    const saveCategories = (newCategories: Category[]) => {
-        setCategories(newCategories);
-        localStorage.setItem('categories', JSON.stringify(newCategories));
+    const addCategory = async (categoryData: Omit<Category, 'id' | 'order'>) => {
+        try {
+            const siblings = categories.filter(c => c.parent_id === categoryData.parent_id);
+            const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(s => s.order ?? 0)) + 1 : 0;
+            await addDoc(collection(db, 'categories'), { ...categoryData, order: maxOrder });
+        } catch (error) {
+            console.error('Error adding category:', error);
+        }
     };
 
-    const addCategory = (categoryData: Omit<Category, 'id' | 'order'>) => {
-        // Calculate order for new category
-        const siblings = categories.filter(c => c.parent_id === categoryData.parent_id);
-        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(s => s.order ?? 0)) + 1 : 0;
-
-        const newCategory: Category = {
-            ...categoryData,
-            id: Date.now().toString(),
-            order: maxOrder
-        };
-        saveCategories([...categories, newCategory]);
+    const updateCategory = async (id: string, updates: Partial<Category>) => {
+        try {
+            const categoryRef = doc(db, 'categories', id);
+            await updateDoc(categoryRef, updates);
+        } catch (error) {
+            console.error('Error updating category:', error);
+        }
     };
 
-    const updateCategory = (id: string, updates: Partial<Category>) => {
-        const newCategories = categories.map(cat =>
-            cat.id === id ? { ...cat, ...updates } : cat
-        );
-        saveCategories(newCategories);
+    const deleteCategory = async (id: string) => {
+        try {
+            const categoryRef = doc(db, 'categories', id);
+            await deleteDoc(categoryRef);
+            // Also delete children
+            const children = categories.filter(c => c.parent_id === id);
+            for (const child of children) {
+                await deleteDoc(doc(db, 'categories', child.id));
+            }
+        } catch (error) {
+            console.error('Error deleting category:', error);
+        }
     };
 
-    const deleteCategory = (id: string) => {
-        // Also delete children
-        const newCategories = categories.filter(cat => cat.id !== id && cat.parent_id !== id);
-        saveCategories(newCategories);
-    };
-
-    const reorderCategory = (id: string, direction: 'up' | 'down' | 'left' | 'right') => {
+    const reorderCategory = async (id: string, direction: 'up' | 'down' | 'left' | 'right') => {
         const category = categories.find(c => c.id === id);
         if (!category) return;
 
-        // Map left/right to prev/next for subcategories
         const isNext = direction === 'down' || direction === 'right';
-
-        // Get siblings (same parent_id) and sort by current order
         const siblings = categories
             .filter(c => c.parent_id === category.parent_id)
             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
@@ -124,28 +130,15 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 
         if (targetIndex < 0 || targetIndex >= siblings.length) return;
 
-        // Normalize order values for all siblings first
-        const normalizedSiblings = siblings.map((cat, idx) => ({
-            ...cat,
-            order: idx
-        }));
+        try {
+            const currentCat = siblings[currentIndex];
+            const targetCat = siblings[targetIndex];
 
-        // Swap positions in the array
-        const temp = normalizedSiblings[currentIndex];
-        normalizedSiblings[currentIndex] = { ...normalizedSiblings[targetIndex], order: currentIndex };
-        normalizedSiblings[targetIndex] = { ...temp, order: targetIndex };
-
-        // Create new categories array with updated orders
-        const updatedSiblingMap = new Map(normalizedSiblings.map(s => [s.id, s.order]));
-
-        const newCategories = categories.map(cat => {
-            if (updatedSiblingMap.has(cat.id)) {
-                return { ...cat, order: updatedSiblingMap.get(cat.id)! };
-            }
-            return cat;
-        });
-
-        saveCategories(newCategories);
+            await updateDoc(doc(db, 'categories', currentCat.id), { order: targetIndex });
+            await updateDoc(doc(db, 'categories', targetCat.id), { order: currentIndex });
+        } catch (error) {
+            console.error('Error reordering categories:', error);
+        }
     };
 
     return (
