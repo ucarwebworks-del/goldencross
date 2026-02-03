@@ -1,42 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Poppins', sans-serif;
+
+  --primary: #111111;
+  --secondary: #FFFFFF;
+  --accent: #00E676;
+  --input-bg: #1a1a1a;
+  --text-primary: #FFFFFF;
+  --text-secondary: #a0a0a0;
+
+  --container-width: 1400px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Tüm site için koyu arkaplan */
 html,
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
+  background-color: #111111;
+  color: #FFFFFF;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
+/* Link renkleri */
 a {
-  color: inherit;
-  text-decoration: none;
+  color: #FFFFFF;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+a:hover {
+  color: #00E676;
+}
+
+@layer components {
+  .container {
+    @apply max-w-[1400px] mx-auto px-5;
+  }
+
+  .section {
+    @apply py-16;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-secondary hover:opacity-90 transition-opacity;
   }
 }
