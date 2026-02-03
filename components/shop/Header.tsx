@@ -6,6 +6,7 @@ import { useCart } from '@/context/CartContext';
 import { useSettings } from '@/context/SettingsContext';
 import { useCategories } from '@/context/CategoryContext';
 import { useBlog } from '@/context/BlogContext';
+import { useAuth } from '@/context/AuthContext';
 
 export default function Header() {
     const [isScrolled, setIsScrolled] = useState(false);
@@ -15,6 +16,7 @@ export default function Header() {
     const { settings } = useSettings();
     const { categories } = useCategories();
     const { blogEnabled } = useBlog();
+    const { user } = useAuth();
 
 
     useEffect(() => {
@@ -83,9 +85,10 @@ export default function Header() {
                         <button className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:block">
                             <Heart size={22} strokeWidth={1.5} />
                         </button>
-                        <button className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:block">
+                        <Link href={user ? "/account" : "/login"} className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:flex items-center gap-2">
                             <User size={22} strokeWidth={1.5} />
-                        </button>
+                            {user && <span className="text-sm font-medium hidden md:block">{user.displayName?.split(' ')[0] || 'Hesabım'}</span>}
+                        </Link>
                         <div className="relative">
                             <button
                                 onClick={openCart}

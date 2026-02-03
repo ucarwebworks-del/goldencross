@@ -5,6 +5,9 @@ import { ConfirmDialogProvider } from '@/components/ui/ConfirmDialog';
 import { AdminAuthProvider, useAdminAuth } from '@/context/AdminAuthContext';
 import '../../globals.css';
 
+// Force all admin pages to be dynamic
+export const dynamic = 'force-dynamic';
+
 function AdminLayoutContent({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, isLoading, user } = useAdminAuth();
 

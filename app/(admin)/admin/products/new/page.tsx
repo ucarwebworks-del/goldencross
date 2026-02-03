@@ -1,10 +1,7 @@
-import ProductForm from '@/components/admin/ProductForm';
+import NewProductPageClient from './NewProductPageClient';
+
+export const dynamic = 'force-dynamic';
 
 export default function NewProductPage() {
-    return (
-        <div className="max-w-5xl mx-auto">
-            <h1 className="text-2xl font-bold mb-6">Yeni Ürün Ekle</h1>
-            <ProductForm />
-        </div>
-    );
+    return <NewProductPageClient />;
 }

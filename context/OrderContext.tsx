@@ -18,17 +18,19 @@ export interface Order {
     items: CartItem[];
     total: number;
     paymentMethod: 'Credit Card' | 'Bank Transfer';
-    status: 'Hazırlanıyor' | 'Kargoda' | 'Teslim Edildi' | 'İptal';
+    status: 'Beklemede' | 'Onaylandı' | 'Hazırlanıyor' | 'Kargoya Verildi' | 'Teslim Edildi' | 'İptal Edildi';
     date: string;
+    createdAt: string;
     shippingCost?: number;
     couponCode?: string;
     couponDiscount?: number;
     note?: string;
+    trackingNumber?: string;
 }
 
 interface OrderContextType {
     orders: Order[];
-    addOrder: (order: Omit<Order, 'id' | 'date' | 'status'> & { orderNumber?: string }) => Promise<Order>;
+    addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'createdAt'> & { orderNumber?: string }) => Promise<Order>;
     updateOrderStatus: (id: string, status: Order['status']) => Promise<void>;
     getOrder: (id: string) => Order | undefined;
     isLoading: boolean;
@@ -60,13 +62,15 @@ export function OrderProvider({ children }: { children: ReactNode }) {
         return () => unsubscribe();
     }, []);
 
-    const addOrder = async (orderData: Omit<Order, 'id' | 'date' | 'status'> & { orderNumber?: string }): Promise<Order> => {
+    const addOrder = async (orderData: Omit<Order, 'id' | 'date' | 'status' | 'createdAt'> & { orderNumber?: string }): Promise<Order> => {
         const orderNum = orderData.orderNumber || `GG-${Date.now()}`;
+        const now = new Date();
         const newOrderData = {
             ...orderData,
             orderNumber: orderNum,
-            date: new Date().toLocaleString('tr-TR'),
-            status: 'Hazırlanıyor' as const
+            date: now.toLocaleString('tr-TR'),
+            createdAt: now.toISOString(),
+            status: 'Beklemede' as const
         };
 
         try {
