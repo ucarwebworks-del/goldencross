@@ -111,23 +111,23 @@ export default function BlogAdminPageClient() {
     if (isLoading) return <div className="p-6">Yükleniyor...</div>;
 
     return (
-        <div className="max-w-7xl mx-auto p-6">
+        <div className="max-w-7xl mx-auto p-4 lg:p-6">
             {/* Header */}
-            <div className="flex justify-between items-start mb-8">
+            <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 lg:mb-8">
                 <div>
-                    <h1 className="text-3xl font-bold mb-1">Blog Yönetimi</h1>
+                    <h1 className="text-2xl lg:text-3xl font-bold mb-1">Blog Yönetimi</h1>
                     <p className="text-gray-500 text-sm">İçeriklerinizi oluşturun ve yönetin</p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3 w-full sm:w-auto">
                     <button
                         onClick={() => setShowSettings(!showSettings)}
-                        className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all ${showSettings ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                        className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl font-medium transition-all text-sm ${showSettings ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
                     >
-                        <Settings size={18} /> Ayarlar
+                        <Settings size={18} /> <span className="hidden sm:inline">Ayarlar</span>
                     </button>
                     <button
                         onClick={() => { resetForm(); setShowForm(true); }}
-                        className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-500/25"
+                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-4 sm:px-6 py-2.5 rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg shadow-blue-500/25 text-sm"
                     >
                         <Plus size={18} /> Yeni Yazı
                     </button>
@@ -135,38 +135,38 @@ export default function BlogAdminPageClient() {
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-5 rounded-2xl text-white">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4 mb-6 lg:mb-8">
+                <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-4 lg:p-5 rounded-xl lg:rounded-2xl text-white">
                     <div className="flex items-center justify-between mb-3">
                         <FileText size={24} className="opacity-80" />
                         <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Toplam</span>
                     </div>
-                    <p className="text-3xl font-bold">{posts.length}</p>
-                    <p className="text-sm opacity-80">Yazı</p>
+                    <p className="text-2xl lg:text-3xl font-bold">{posts.length}</p>
+                    <p className="text-xs lg:text-sm opacity-80">Yazı</p>
                 </div>
-                <div className="bg-gradient-to-br from-green-500 to-green-600 p-5 rounded-2xl text-white">
+                <div className="bg-gradient-to-br from-green-500 to-green-600 p-4 lg:p-5 rounded-xl lg:rounded-2xl text-white">
                     <div className="flex items-center justify-between mb-3">
                         <Globe size={24} className="opacity-80" />
                         <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Yayında</span>
                     </div>
-                    <p className="text-3xl font-bold">{publishedCount}</p>
-                    <p className="text-sm opacity-80">Yazı</p>
+                    <p className="text-2xl lg:text-3xl font-bold">{publishedCount}</p>
+                    <p className="text-xs lg:text-sm opacity-80">Yazı</p>
                 </div>
-                <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-5 rounded-2xl text-white">
+                <div className="bg-gradient-to-br from-amber-500 to-amber-600 p-4 lg:p-5 rounded-xl lg:rounded-2xl text-white">
                     <div className="flex items-center justify-between mb-3">
                         <Edit2 size={24} className="opacity-80" />
                         <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Taslak</span>
                     </div>
-                    <p className="text-3xl font-bold">{draftCount}</p>
-                    <p className="text-sm opacity-80">Yazı</p>
+                    <p className="text-2xl lg:text-3xl font-bold">{draftCount}</p>
+                    <p className="text-xs lg:text-sm opacity-80">Yazı</p>
                 </div>
-                <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-5 rounded-2xl text-white">
+                <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-4 lg:p-5 rounded-xl lg:rounded-2xl text-white">
                     <div className="flex items-center justify-between mb-3">
                         <BarChart3 size={24} className="opacity-80" />
                         <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Görüntülenme</span>
                     </div>
-                    <p className="text-3xl font-bold">{totalViews.toLocaleString('tr-TR')}</p>
-                    <p className="text-sm opacity-80">Toplam</p>
+                    <p className="text-2xl lg:text-3xl font-bold">{totalViews.toLocaleString('tr-TR')}</p>
+                    <p className="text-xs lg:text-sm opacity-80">Toplam</p>
                 </div>
             </div>
 
