@@ -1,8 +1,8 @@
 'use client';
 
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getFirestore, Firestore } from 'firebase/firestore';
+import { getAuth, Auth } from 'firebase/auth';
 
 const firebaseConfig = {
     apiKey: "AIzaSyA8KTDD5WTr35lHxYN7NC_liAGS-NIstAY",
@@ -14,9 +14,19 @@ const firebaseConfig = {
     measurementId: "G-VC5YFH2EP4"
 };
 
-// Initialize Firebase only if not already initialized
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getFirestore(app);
-const auth = getAuth(app);
+let app: FirebaseApp;
+let db: Firestore;
+let auth: Auth;
+
+// Only initialize Firebase on the client side
+if (typeof window !== 'undefined') {
+    try {
+        app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+        db = getFirestore(app);
+        auth = getAuth(app);
+    } catch (error) {
+        console.error('Firebase initialization error:', error);
+    }
+}
 
 export { db, auth };
