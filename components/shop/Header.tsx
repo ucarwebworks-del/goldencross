@@ -82,9 +82,6 @@ export default function Header() {
 
                     {/* Actions - Right */}
                     <div className="flex items-center justify-end gap-1 lg:gap-2 flex-1 text-white">
-                        <button className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:block">
-                            <Heart size={22} strokeWidth={1.5} />
-                        </button>
                         <Link href={user ? "/account" : "/login"} className="p-2 hover:bg-white/10 rounded-full transition-colors hidden sm:flex items-center gap-2">
                             <User size={22} strokeWidth={1.5} />
                             {user && <span className="text-sm font-medium hidden md:block">{user.displayName?.split(' ')[0] || 'Hesabım'}</span>}
@@ -262,9 +259,6 @@ export default function Header() {
                     {/* Footer */}
                     <div className="p-4 border-t border-white/10">
                         <div className="flex gap-4">
-                            <Link href="/favorites" onClick={closeMobileMenu} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 rounded-lg text-white text-sm font-medium hover:bg-white/10 transition-colors">
-                                <Heart size={18} /> Favoriler
-                            </Link>
                             <Link href="/account" onClick={closeMobileMenu} className="flex-1 flex items-center justify-center gap-2 py-3 bg-white/5 rounded-lg text-white text-sm font-medium hover:bg-white/10 transition-colors">
                                 <User size={18} /> Hesap
                             </Link>

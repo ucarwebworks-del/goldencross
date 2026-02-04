@@ -146,7 +146,7 @@ export default function OrderSuccessPageClient({ params }: { params: Promise<{ i
                                 <span>Ödeme Durumu:</span>
                                 <span className="font-medium text-amber-500">Bekleniyor</span>
                             </div>
-                            {order.paymentMethod === 'Havale/EFT' && (
+                            {order.paymentMethod === 'Bank Transfer' && (
                                 <div className="bg-amber-500/10 p-3 rounded-xl text-xs text-amber-400 border border-amber-500/20">
                                     💡 Havale açıklama kısmına <strong className="text-amber-300">sipariş numaranızı</strong> yazmayı unutmayın.
                                 </div>
