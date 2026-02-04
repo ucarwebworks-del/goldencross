@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 
 export interface Product {
     id: string;
@@ -99,6 +98,8 @@ const defaultProducts: Product[] = [
     },
 ];
 
+const STORAGE_KEY = 'goldenglass_products';
+
 interface ProductContextType {
     products: Product[];
     addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
@@ -115,64 +116,58 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
+    // Load products from Redis/localStorage
     useEffect(() => {
-        const productsRef = collection(db, 'products');
-
-        const unsubscribe = onSnapshot(productsRef, (snapshot) => {
-            if (snapshot.empty) {
-                // Initialize with default products if collection is empty
-                defaultProducts.forEach(async (product) => {
-                    const { id, ...productData } = product;
-                    await addDoc(productsRef, { ...productData, originalId: id });
-                });
+        const loadProducts = async () => {
+            try {
+                const data = await fetchData<Product[]>(STORAGE_KEY, defaultProducts);
+                setProducts(data.length > 0 ? data : defaultProducts);
+                
+                // Initialize with defaults if empty
+                if (data.length === 0) {
+                    await saveData(STORAGE_KEY, defaultProducts);
+                }
+            } catch (error) {
+                console.error('Error loading products:', error);
                 setProducts(defaultProducts);
-            } else {
-                const productsData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as Product[];
-                setProducts(productsData);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching products:', error);
-            setProducts(defaultProducts);
-            setIsLoading(false);
-        });
+        };
+        
+        loadProducts();
+    }, []);
 
-        return () => unsubscribe();
+    // Save products whenever they change
+    const persistProducts = useCallback(async (newProducts: Product[]) => {
+        setProducts(newProducts);
+        await saveData(STORAGE_KEY, newProducts);
     }, []);
 
     const addProduct = async (productData: Omit<Product, 'id'>) => {
-        try {
-            await addDoc(collection(db, 'products'), productData);
-        } catch (error) {
-            console.error('Error adding product:', error);
-        }
+        const newProduct: Product = {
+            ...productData,
+            id: Date.now().toString(),
+        };
+        await persistProducts([...products, newProduct]);
     };
 
     const updateProduct = async (id: string, updates: Partial<Product>) => {
-        try {
-            const productRef = doc(db, 'products', id);
-            await updateDoc(productRef, updates);
-        } catch (error) {
-            console.error('Error updating product:', error);
-        }
+        const updatedProducts = products.map(p => 
+            p.id === id ? { ...p, ...updates } : p
+        );
+        await persistProducts(updatedProducts);
     };
 
     const deleteProduct = async (id: string) => {
-        try {
-            const productRef = doc(db, 'products', id);
-            await deleteDoc(productRef);
-        } catch (error) {
-            console.error('Error deleting product:', error);
-        }
+        const filteredProducts = products.filter(p => p.id !== id);
+        await persistProducts(filteredProducts);
     };
 
     const getProduct = (id: string) => products.find(p => p.id === id);
 
     const getProductsByCategory = (categorySlug: string) =>
-        products.filter(p => p.category === categorySlug);
+        products.filter(p => p.category === categorySlug && p.status === 'Active');
 
     return (
         <ProductContext.Provider value={{

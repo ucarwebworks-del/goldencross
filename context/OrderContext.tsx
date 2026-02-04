@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, doc, addDoc, updateDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 import { CartItem } from './CartContext';
 
 export interface Order {
@@ -28,10 +27,13 @@ export interface Order {
     trackingNumber?: string;
 }
 
+const STORAGE_KEY = 'goldenglass_orders';
+
 interface OrderContextType {
     orders: Order[];
     addOrder: (order: Omit<Order, 'id' | 'date' | 'status' | 'createdAt'> & { orderNumber?: string }) => Promise<Order>;
     updateOrderStatus: (id: string, status: Order['status']) => Promise<void>;
+    updateOrder: (id: string, updates: Partial<Order>) => Promise<void>;
     getOrder: (id: string) => Order | undefined;
     isLoading: boolean;
 }
@@ -43,62 +45,63 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const ordersRef = collection(db, 'orders');
+        const loadOrders = async () => {
+            try {
+                const data = await fetchData<Order[]>(STORAGE_KEY, []);
+                // Sort by date descending
+                const sorted = [...data].sort((a, b) => 
+                    new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime()
+                );
+                setOrders(sorted);
+            } catch (error) {
+                console.error('Error loading orders:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        loadOrders();
+    }, []);
 
-        const unsubscribe = onSnapshot(ordersRef, (snapshot) => {
-            const ordersData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Order[];
-            // Sort by date descending
-            ordersData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setOrders(ordersData);
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching orders:', error);
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
+    const persistOrders = useCallback(async (newOrders: Order[]) => {
+        setOrders(newOrders);
+        await saveData(STORAGE_KEY, newOrders);
     }, []);
 
     const addOrder = async (orderData: Omit<Order, 'id' | 'date' | 'status' | 'createdAt'> & { orderNumber?: string }): Promise<Order> => {
         const orderNum = orderData.orderNumber || `GG-${Date.now()}`;
         const now = new Date();
-        const newOrderData = {
+        const newOrder: Order = {
             ...orderData,
+            id: Date.now().toString(),
             orderNumber: orderNum,
             date: now.toLocaleString('tr-TR'),
             createdAt: now.toISOString(),
-            status: 'Beklemede' as const
+            status: 'Beklemede'
         };
 
-        try {
-            const docRef = await addDoc(collection(db, 'orders'), newOrderData);
-            const newOrder: Order = {
-                ...newOrderData,
-                id: docRef.id
-            };
-            return newOrder;
-        } catch (error) {
-            console.error('Error adding order:', error);
-            throw error;
-        }
+        await persistOrders([newOrder, ...orders]);
+        return newOrder;
     };
 
     const updateOrderStatus = async (id: string, status: Order['status']) => {
-        try {
-            const orderRef = doc(db, 'orders', id);
-            await updateDoc(orderRef, { status });
-        } catch (error) {
-            console.error('Error updating order status:', error);
-        }
+        const updatedOrders = orders.map(o => 
+            o.id === id ? { ...o, status } : o
+        );
+        await persistOrders(updatedOrders);
+    };
+
+    const updateOrder = async (id: string, updates: Partial<Order>) => {
+        const updatedOrders = orders.map(o => 
+            o.id === id ? { ...o, ...updates } : o
+        );
+        await persistOrders(updatedOrders);
     };
 
     const getOrder = (id: string) => orders.find(o => o.id === id || o.orderNumber === id);
 
     return (
-        <OrderContext.Provider value={{ orders, addOrder, updateOrderStatus, getOrder, isLoading }}>
+        <OrderContext.Provider value={{ orders, addOrder, updateOrderStatus, updateOrder, getOrder, isLoading }}>
             {children}
         </OrderContext.Provider>
     );

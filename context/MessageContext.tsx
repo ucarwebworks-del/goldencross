@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 
 export interface Message {
     id: string;
@@ -23,58 +22,58 @@ interface MessageContextType {
 
 const MessageContext = createContext<MessageContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'goldenglass_messages';
+
 export function MessageProvider({ children }: { children: ReactNode }) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const messagesRef = collection(db, 'messages');
+        const loadMessages = async () => {
+            try {
+                const data = await fetchData<Message[]>(STORAGE_KEY, []);
+                const sorted = [...data].sort((a, b) =>
+                    new Date(b.date).getTime() - new Date(a.date).getTime()
+                );
+                setMessages(sorted);
+            } catch (error) {
+                console.error('Error loading messages:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-        const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
-            const messagesData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Message[];
-            // Sort by date descending
-            messagesData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setMessages(messagesData);
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching messages:', error);
-            setIsLoading(false);
-        });
+        loadMessages();
+    }, []);
 
-        return () => unsubscribe();
+    const persistMessages = useCallback(async (newMessages: Message[]) => {
+        const sorted = [...newMessages].sort((a, b) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        setMessages(sorted);
+        await saveData(STORAGE_KEY, sorted);
     }, []);
 
     const addMessage = async (messageData: Omit<Message, 'id' | 'date' | 'isRead'>) => {
-        try {
-            await addDoc(collection(db, 'messages'), {
-                ...messageData,
-                date: new Date().toISOString(),
-                isRead: false
-            });
-        } catch (error) {
-            console.error('Error adding message:', error);
-        }
+        const newMessage: Message = {
+            ...messageData,
+            id: Date.now().toString(),
+            date: new Date().toISOString(),
+            isRead: false
+        };
+        await persistMessages([...messages, newMessage]);
     };
 
     const markAsRead = async (id: string) => {
-        try {
-            const messageRef = doc(db, 'messages', id);
-            await updateDoc(messageRef, { isRead: true });
-        } catch (error) {
-            console.error('Error marking message as read:', error);
-        }
+        const updatedMessages = messages.map(m =>
+            m.id === id ? { ...m, isRead: true } : m
+        );
+        await persistMessages(updatedMessages);
     };
 
     const deleteMessage = async (id: string) => {
-        try {
-            const messageRef = doc(db, 'messages', id);
-            await deleteDoc(messageRef);
-        } catch (error) {
-            console.error('Error deleting message:', error);
-        }
+        const filteredMessages = messages.filter(m => m.id !== id);
+        await persistMessages(filteredMessages);
     };
 
     const unreadCount = messages.filter(m => !m.isRead).length;

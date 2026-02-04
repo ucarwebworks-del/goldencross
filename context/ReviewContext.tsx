@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 
 export interface Review {
     id: string;
@@ -28,65 +27,59 @@ interface ReviewContextType {
 
 const ReviewContext = createContext<ReviewContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'goldenglass_reviews';
+
 export function ReviewProvider({ children }: { children: ReactNode }) {
     const [reviews, setReviews] = useState<Review[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const reviewsRef = collection(db, 'reviews');
+        const loadReviews = async () => {
+            try {
+                const data = await fetchData<Review[]>(STORAGE_KEY, []);
+                setReviews(data);
+            } catch (error) {
+                console.error('Error loading reviews:', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        
+        loadReviews();
+    }, []);
 
-        const unsubscribe = onSnapshot(reviewsRef, (snapshot) => {
-            const reviewsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Review[];
-            setReviews(reviewsData);
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching reviews:', error);
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
+    const persistReviews = useCallback(async (newReviews: Review[]) => {
+        setReviews(newReviews);
+        await saveData(STORAGE_KEY, newReviews);
     }, []);
 
     const addReview = async (reviewData: Omit<Review, 'id' | 'isApproved' | 'createdAt'>) => {
-        try {
-            await addDoc(collection(db, 'reviews'), {
-                ...reviewData,
-                isApproved: false,
-                createdAt: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error('Error adding review:', error);
-        }
+        const newReview: Review = {
+            ...reviewData,
+            id: Date.now().toString(),
+            isApproved: false,
+            createdAt: new Date().toISOString()
+        };
+        await persistReviews([...reviews, newReview]);
     };
 
     const approveReview = async (id: string) => {
-        try {
-            const reviewRef = doc(db, 'reviews', id);
-            await updateDoc(reviewRef, { isApproved: true });
-        } catch (error) {
-            console.error('Error approving review:', error);
-        }
+        const updatedReviews = reviews.map(r => 
+            r.id === id ? { ...r, isApproved: true } : r
+        );
+        await persistReviews(updatedReviews);
     };
 
     const rejectReview = async (id: string) => {
-        try {
-            const reviewRef = doc(db, 'reviews', id);
-            await updateDoc(reviewRef, { isApproved: false });
-        } catch (error) {
-            console.error('Error rejecting review:', error);
-        }
+        const updatedReviews = reviews.map(r => 
+            r.id === id ? { ...r, isApproved: false } : r
+        );
+        await persistReviews(updatedReviews);
     };
 
     const deleteReview = async (id: string) => {
-        try {
-            const reviewRef = doc(db, 'reviews', id);
-            await deleteDoc(reviewRef);
-        } catch (error) {
-            console.error('Error deleting review:', error);
-        }
+        const filteredReviews = reviews.filter(r => r.id !== id);
+        await persistReviews(filteredReviews);
     };
 
     const getProductReviews = (productId: string): Review[] => {

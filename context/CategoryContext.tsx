@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, doc, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 
 export interface Category {
     id: string;
@@ -21,6 +20,8 @@ const defaultCategories: Category[] = [
     { id: '5', name: 'Hayvanlar', slug: 'hayvanlar', parent_id: '3', order: 1 },
     { id: '6', name: 'Soyut Sanat', slug: 'soyut-sanat', parent_id: '2', order: 0 }
 ];
+
+const STORAGE_KEY = 'goldenglass_categories';
 
 interface CategoryContextType {
     categories: Category[];
@@ -57,63 +58,56 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const categoriesRef = collection(db, 'categories');
-
-        const unsubscribe = onSnapshot(categoriesRef, (snapshot) => {
-            if (snapshot.empty) {
-                defaultCategories.forEach(async (category) => {
-                    const { id, ...categoryData } = category;
-                    await addDoc(categoriesRef, { ...categoryData, originalId: id });
-                });
+        const loadCategories = async () => {
+            try {
+                const data = await fetchData<Category[]>(STORAGE_KEY, defaultCategories);
+                const ordered = ensureOrder(data.length > 0 ? data : defaultCategories);
+                setCategories(ordered);
+                
+                if (data.length === 0) {
+                    await saveData(STORAGE_KEY, defaultCategories);
+                }
+            } catch (error) {
+                console.error('Error loading categories:', error);
                 setCategories(defaultCategories);
-            } else {
-                const categoriesData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as Category[];
-                setCategories(ensureOrder(categoriesData));
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching categories:', error);
-            setCategories(defaultCategories);
-            setIsLoading(false);
-        });
+        };
+        
+        loadCategories();
+    }, []);
 
-        return () => unsubscribe();
+    const persistCategories = useCallback(async (newCategories: Category[]) => {
+        const ordered = ensureOrder(newCategories);
+        setCategories(ordered);
+        await saveData(STORAGE_KEY, ordered);
     }, []);
 
     const addCategory = async (categoryData: Omit<Category, 'id' | 'order'>) => {
-        try {
-            const siblings = categories.filter(c => c.parent_id === categoryData.parent_id);
-            const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(s => s.order ?? 0)) + 1 : 0;
-            await addDoc(collection(db, 'categories'), { ...categoryData, order: maxOrder });
-        } catch (error) {
-            console.error('Error adding category:', error);
-        }
+        const siblings = categories.filter(c => c.parent_id === categoryData.parent_id);
+        const maxOrder = siblings.length > 0 ? Math.max(...siblings.map(s => s.order ?? 0)) + 1 : 0;
+        const newCategory: Category = {
+            ...categoryData,
+            id: Date.now().toString(),
+            order: maxOrder
+        };
+        await persistCategories([...categories, newCategory]);
     };
 
     const updateCategory = async (id: string, updates: Partial<Category>) => {
-        try {
-            const categoryRef = doc(db, 'categories', id);
-            await updateDoc(categoryRef, updates);
-        } catch (error) {
-            console.error('Error updating category:', error);
-        }
+        const updatedCategories = categories.map(c => 
+            c.id === id ? { ...c, ...updates } : c
+        );
+        await persistCategories(updatedCategories);
     };
 
     const deleteCategory = async (id: string) => {
-        try {
-            const categoryRef = doc(db, 'categories', id);
-            await deleteDoc(categoryRef);
-            // Also delete children
-            const children = categories.filter(c => c.parent_id === id);
-            for (const child of children) {
-                await deleteDoc(doc(db, 'categories', child.id));
-            }
-        } catch (error) {
-            console.error('Error deleting category:', error);
-        }
+        // Delete category and its children
+        const idsToDelete = new Set([id]);
+        categories.filter(c => c.parent_id === id).forEach(child => idsToDelete.add(child.id));
+        const filteredCategories = categories.filter(c => !idsToDelete.has(c.id));
+        await persistCategories(filteredCategories);
     };
 
     const reorderCategory = async (id: string, direction: 'up' | 'down' | 'left' | 'right') => {
@@ -130,15 +124,16 @@ export function CategoryProvider({ children }: { children: ReactNode }) {
 
         if (targetIndex < 0 || targetIndex >= siblings.length) return;
 
-        try {
-            const currentCat = siblings[currentIndex];
-            const targetCat = siblings[targetIndex];
+        const currentCat = siblings[currentIndex];
+        const targetCat = siblings[targetIndex];
 
-            await updateDoc(doc(db, 'categories', currentCat.id), { order: targetIndex });
-            await updateDoc(doc(db, 'categories', targetCat.id), { order: currentIndex });
-        } catch (error) {
-            console.error('Error reordering categories:', error);
-        }
+        const updatedCategories = categories.map(c => {
+            if (c.id === currentCat.id) return { ...c, order: targetIndex };
+            if (c.id === targetCat.id) return { ...c, order: currentIndex };
+            return c;
+        });
+
+        await persistCategories(updatedCategories);
     };
 
     return (

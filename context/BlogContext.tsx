@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, doc, addDoc, updateDoc, deleteDoc, onSnapshot, getDoc, setDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 
 export interface BlogPost {
     id: string;
@@ -21,6 +20,11 @@ export interface BlogPost {
     views?: number;
 }
 
+interface BlogSettings {
+    enabled: boolean;
+    title: string;
+}
+
 interface BlogContextType {
     posts: BlogPost[];
     addPost: (post: Omit<BlogPost, 'id'>) => Promise<void>;
@@ -37,6 +41,9 @@ interface BlogContextType {
 }
 
 const BlogContext = createContext<BlogContextType | undefined>(undefined);
+
+const STORAGE_KEY = 'goldenglass_blog';
+const SETTINGS_KEY = 'goldenglass_blog_settings';
 
 const defaultPosts: BlogPost[] = [
     {
@@ -71,6 +78,8 @@ const defaultPosts: BlogPost[] = [
     }
 ];
 
+const defaultSettings: BlogSettings = { enabled: true, title: 'Blog' };
+
 export function BlogProvider({ children }: { children: ReactNode }) {
     const [posts, setPosts] = useState<BlogPost[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -78,69 +87,61 @@ export function BlogProvider({ children }: { children: ReactNode }) {
     const [blogTitle, setBlogTitleState] = useState('Blog');
 
     useEffect(() => {
-        const postsRef = collection(db, 'blog');
-        const settingsRef = doc(db, 'settings', 'blog');
-
-        const unsubscribePosts = onSnapshot(postsRef, (snapshot) => {
-            if (snapshot.empty) {
-                defaultPosts.forEach(async (post) => {
-                    const { id, ...postData } = post;
-                    await addDoc(postsRef, postData);
-                });
+        const loadData = async () => {
+            try {
+                const [postsData, settingsData] = await Promise.all([
+                    fetchData<BlogPost[]>(STORAGE_KEY, defaultPosts),
+                    fetchData<BlogSettings>(SETTINGS_KEY, defaultSettings)
+                ]);
+                
+                const sortedPosts = [...(postsData.length > 0 ? postsData : defaultPosts)]
+                    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+                setPosts(sortedPosts);
+                
+                setBlogEnabledState(settingsData.enabled ?? true);
+                setBlogTitleState(settingsData.title ?? 'Blog');
+                
+                if (postsData.length === 0) {
+                    await saveData(STORAGE_KEY, defaultPosts);
+                }
+            } catch (error) {
+                console.error('Error loading blog:', error);
                 setPosts(defaultPosts);
-            } else {
-                const postsData = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                })) as BlogPost[];
-                postsData.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
-                setPosts(postsData);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching blog posts:', error);
-            setPosts(defaultPosts);
-            setIsLoading(false);
-        });
-
-        const unsubscribeSettings = onSnapshot(settingsRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const data = snapshot.data();
-                setBlogEnabledState(data.enabled ?? true);
-                setBlogTitleState(data.title ?? 'Blog');
-            }
-        });
-
-        return () => {
-            unsubscribePosts();
-            unsubscribeSettings();
         };
+        
+        loadData();
+    }, []);
+
+    const persistPosts = useCallback(async (newPosts: BlogPost[]) => {
+        const sorted = [...newPosts].sort((a, b) => 
+            new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+        );
+        setPosts(sorted);
+        await saveData(STORAGE_KEY, sorted);
     }, []);
 
     const addPost = async (post: Omit<BlogPost, 'id'>) => {
-        try {
-            await addDoc(collection(db, 'blog'), { ...post, views: 0 });
-        } catch (error) {
-            console.error('Error adding blog post:', error);
-        }
+        const newPost: BlogPost = {
+            ...post,
+            id: Date.now().toString(),
+            views: 0
+        };
+        await persistPosts([...posts, newPost]);
     };
 
     const updatePost = async (id: string, data: Partial<BlogPost>) => {
-        try {
-            const postRef = doc(db, 'blog', id);
-            await updateDoc(postRef, data);
-        } catch (error) {
-            console.error('Error updating blog post:', error);
-        }
+        const updatedPosts = posts.map(p => 
+            p.id === id ? { ...p, ...data } : p
+        );
+        await persistPosts(updatedPosts);
     };
 
     const deletePost = async (id: string) => {
-        try {
-            const postRef = doc(db, 'blog', id);
-            await deleteDoc(postRef);
-        } catch (error) {
-            console.error('Error deleting blog post:', error);
-        }
+        const filteredPosts = posts.filter(p => p.id !== id);
+        await persistPosts(filteredPosts);
     };
 
     const getPost = (id: string) => posts.find(p => p.id === id);
@@ -148,21 +149,13 @@ export function BlogProvider({ children }: { children: ReactNode }) {
     const getPublishedPosts = () => posts.filter(p => p.isPublished);
 
     const setBlogEnabled = async (enabled: boolean) => {
-        try {
-            await setDoc(doc(db, 'settings', 'blog'), { enabled, title: blogTitle }, { merge: true });
-            setBlogEnabledState(enabled);
-        } catch (error) {
-            console.error('Error updating blog settings:', error);
-        }
+        setBlogEnabledState(enabled);
+        await saveData(SETTINGS_KEY, { enabled, title: blogTitle });
     };
 
     const setBlogTitle = async (title: string) => {
-        try {
-            await setDoc(doc(db, 'settings', 'blog'), { enabled: blogEnabled, title }, { merge: true });
-            setBlogTitleState(title);
-        } catch (error) {
-            console.error('Error updating blog settings:', error);
-        }
+        setBlogTitleState(title);
+        await saveData(SETTINGS_KEY, { enabled: blogEnabled, title });
     };
 
     return (

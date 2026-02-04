@@ -1,7 +1,6 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { fetchData, saveData } from '@/lib/dataService';
 
 export interface SiteSettings {
     siteTitle: string;
@@ -51,6 +50,8 @@ const defaultSettings: SiteSettings = {
     announcementBarActive: true,
 };
 
+const STORAGE_KEY = 'goldenglass_settings';
+
 interface SettingsContextType {
     settings: SiteSettings;
     updateSettings: (newSettings: Partial<SiteSettings>) => Promise<void>;
@@ -64,34 +65,31 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const settingsRef = doc(db, 'settings', 'site');
-
-        const unsubscribe = onSnapshot(settingsRef, async (snapshot) => {
-            if (!snapshot.exists()) {
-                await setDoc(settingsRef, defaultSettings);
+        const loadSettings = async () => {
+            try {
+                const data = await fetchData<SiteSettings>(STORAGE_KEY, defaultSettings);
+                setSettings({ ...defaultSettings, ...data });
+                
+                // Initialize if empty
+                if (!data || Object.keys(data).length === 0) {
+                    await saveData(STORAGE_KEY, defaultSettings);
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
                 setSettings(defaultSettings);
-            } else {
-                setSettings({ ...defaultSettings, ...snapshot.data() } as SiteSettings);
+            } finally {
+                setIsLoading(false);
             }
-            setIsLoading(false);
-        }, (error) => {
-            console.error('Error fetching settings:', error);
-            setSettings(defaultSettings);
-            setIsLoading(false);
-        });
-
-        return () => unsubscribe();
+        };
+        
+        loadSettings();
     }, []);
 
-    const updateSettings = async (newSettings: Partial<SiteSettings>) => {
-        try {
-            const settingsRef = doc(db, 'settings', 'site');
-            const updated = { ...settings, ...newSettings };
-            await setDoc(settingsRef, updated);
-        } catch (error) {
-            console.error('Error updating settings:', error);
-        }
-    };
+    const updateSettings = useCallback(async (newSettings: Partial<SiteSettings>) => {
+        const updated = { ...settings, ...newSettings };
+        setSettings(updated);
+        await saveData(STORAGE_KEY, updated);
+    }, [settings]);
 
     return (
         <SettingsContext.Provider value={{ settings, updateSettings, isLoading }}>
