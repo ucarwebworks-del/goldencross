@@ -59,7 +59,7 @@ export default function CartDrawer() {
                                         </div>
                                         <div className="text-right">
                                             <p className="font-bold text-sm text-white">{item.price.toLocaleString('tr-TR')} TL</p>
-                                            <button onClick={() => removeFromCart(item.id)} className="text-xs text-red-500 underline mt-1 hover:text-red-400">Sil</button>
+                                            <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-400 mt-1 p-1"><Trash2 size={14} /></button>
                                         </div>
                                     </div>
                                 </div>

@@ -67,13 +67,13 @@ export default function WhyUs() {
                         {FEATURES.map((feature, idx) => (
                             <div
                                 key={idx}
-                                className="flex-shrink-0 w-64 bg-white/5 p-5 rounded-xl snap-start"
+                                className="flex-shrink-0 w-44 bg-white/5 p-3 rounded-xl snap-start"
                             >
-                                <div className="bg-white/10 text-accent p-3 rounded-lg w-fit mb-4">
-                                    <feature.icon size={24} strokeWidth={1.5} />
+                                <div className="bg-white/10 text-accent p-2 rounded-lg w-fit mb-2">
+                                    <feature.icon size={18} strokeWidth={1.5} />
                                 </div>
-                                <h3 className="font-bold text-lg mb-2 text-white">{feature.title}</h3>
-                                <p className="text-sm text-gray-400 leading-relaxed">
+                                <h3 className="font-bold text-sm mb-1 text-white">{feature.title}</h3>
+                                <p className="text-xs text-gray-400 leading-relaxed">
                                     {feature.desc}
                                 </p>
                             </div>

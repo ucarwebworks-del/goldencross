@@ -149,7 +149,6 @@ export default function Header() {
                                 </div>
                             </div>
                         </li>
-                        <li><Link href="/collections/new" className="hover:text-white transition-colors block py-2">Yeni Gelenler</Link></li>
                         <li><Link href="/about" className="hover:text-white transition-colors block py-2">Neden Biz?</Link></li>
                         <li><Link href="/contact" className="hover:text-white transition-colors block py-2">İletişim</Link></li>
                         <li><Link href="/order-track" className="hover:text-white transition-colors block py-2">Sipariş Takibi</Link></li>
@@ -234,11 +233,6 @@ export default function Header() {
                                         </li>
                                     </ul>
                                 )}
-                            </li>
-                            <li>
-                                <Link href="/collections/new" onClick={closeMobileMenu} className="block py-3 text-white font-medium hover:text-accent transition-colors">
-                                    Yeni Gelenler
-                                </Link>
                             </li>
                             <li>
                                 <Link href="/about" onClick={closeMobileMenu} className="block py-3 text-white font-medium hover:text-accent transition-colors">

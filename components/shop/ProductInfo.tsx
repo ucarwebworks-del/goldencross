@@ -71,13 +71,13 @@ export default function ProductInfo({ product }: { product: Product }) {
     };
 
     return (
-        <div className="space-y-8">
+        <div className="space-y-4 md:space-y-8">
             {/* Header */}
             <div>
-                <h1 className="text-3xl lg:text-4xl font-bold mb-2 text-white">
+                <h1 className="text-2xl lg:text-4xl font-bold mb-2 text-white">
                     {product.name}
                 </h1>
-                <div className="flex items-center gap-4 text-sm mb-4">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs sm:text-sm mb-3">
                     {(() => {
                         const { average, count } = getProductRating(product.id);
                         const stars = count > 0 ? Math.round(average) : 5;
@@ -86,25 +86,25 @@ export default function ProductInfo({ product }: { product: Product }) {
                                 <div className="flex text-yellow-500">
                                     {'★'.repeat(stars)}{'☆'.repeat(5 - stars)}
                                 </div>
-                                <span className="text-gray-400 underline decoration-gray-600 underline-offset-4">
-                                    {count > 0 ? `${count} Değerlendirme` : 'Henüz Değerlendirme Yok'}
+                                <span className="text-gray-400">
+                                    {count > 0 ? `${count} Değerlendirme` : 'Henüz değerlendirme yok'}
                                 </span>
                             </>
                         );
                     })()}
-                    <span className="text-gray-600">|</span>
+                    <span className="text-gray-600 hidden sm:inline">|</span>
                     <span className="text-gray-400">SKU: {product.sku}</span>
                 </div>
 
                 <div className="flex items-end gap-3">
-                    <span className="text-4xl font-bold tracking-tight text-white">{totalPrice.toLocaleString('tr-TR')} TL</span>
+                    <span className="text-3xl sm:text-4xl font-bold tracking-tight text-white">{totalPrice.toLocaleString('tr-TR')} TL</span>
                     {oldTotalPrice && (
-                        <span className="text-xl text-gray-500 line-through mb-1">
+                        <span className="text-lg sm:text-xl text-gray-500 line-through mb-1">
                             {oldTotalPrice.toLocaleString('tr-TR')} TL
                         </span>
                     )}
                 </div>
-                <p className="text-green-500 text-sm font-medium mt-2">
+                <p className="text-green-500 text-xs sm:text-sm font-medium mt-1">
                     3 gün içinde kargoda • Ücretsiz Kargo
                 </p>
             </div>

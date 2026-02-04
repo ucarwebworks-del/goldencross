@@ -32,13 +32,13 @@ export default function ProductDetailPageClient({ params }: { params: Promise<{ 
     const relatedProducts = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
 
     return (
-        <div className="container py-12">
+        <div className="container py-6 md:py-12">
             {/* Breadcrumb */}
-            <div className="text-sm text-gray-400 mb-8">
+            <div className="text-xs sm:text-sm text-gray-400 mb-4 md:mb-8">
                 Anasayfa / Koleksiyonlar / {product.category} / <span className="text-white font-medium">{product.name}</span>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-12 lg:gap-20">
                 <ProductGallery images={product.images} />
                 <ProductInfo product={product} />
             </div>

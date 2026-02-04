@@ -38,12 +38,13 @@ export default function CategoryGrid() {
                     </Link>
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {/* Mobile: Horizontal Scroll, Desktop: Grid */}
+                <div className="flex md:grid md:grid-cols-3 lg:grid-cols-6 gap-4 overflow-x-auto md:overflow-visible pb-4 md:pb-0 -mx-4 px-4 md:mx-0 md:px-0 snap-x snap-mandatory scrollbar-hide">
                     {parentCategories.slice(0, 6).map((cat) => (
                         <Link
                             key={cat.id}
                             href={`/collections/${cat.slug}`}
-                            className="group block relative aspect-[3/4] overflow-hidden rounded-lg bg-[#1a1a1a] shadow-sm hover:shadow-lg transition-all"
+                            className="group block relative aspect-[3/4] overflow-hidden rounded-lg bg-[#1a1a1a] shadow-sm hover:shadow-lg transition-all flex-shrink-0 w-[45vw] md:w-auto snap-start"
                         >
                             {cat.image ? (
                                 <div

@@ -29,7 +29,7 @@ export default function AboutPageClient() {
     return (
         <div className="bg-[#111111]">
             {/* Hero Section */}
-            <div className="relative h-[400px] w-full bg-[#1a1a1a] flex items-center justify-center overflow-hidden">
+            <div className="relative h-[250px] sm:h-[350px] md:h-[400px] w-full bg-[#1a1a1a] flex items-center justify-center overflow-hidden">
                 <div className="absolute inset-0 bg-black/60 z-10" />
                 {mediaType === 'video' && heroVideo ? (
                     <video
@@ -47,25 +47,25 @@ export default function AboutPageClient() {
                     />
                 )}
                 <div className="relative z-20 text-center text-white px-4">
-                    <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4">{aboutPage?.title || 'Hakkımızda'}</h1>
-                    <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+                    <h1 className="text-2xl sm:text-3xl md:text-5xl font-bold mb-2 sm:mb-4">{aboutPage?.title || 'Hakkımızda'}</h1>
+                    <p className="text-sm sm:text-base md:text-xl text-gray-300 max-w-2xl mx-auto">
                         Sanat ve teknolojiyi buluşturarak yaşam alanlarınıza değer katıyoruz.
                     </p>
                 </div>
             </div>
 
             {/* Story Section */}
-            <div className="container py-12 md:py-20 px-4">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-start">
+            <div className="container py-8 md:py-20 px-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-16 items-start">
                     <div>
-                        <h2 className="text-sm text-[#00E676] font-bold uppercase tracking-wider mb-2">GOLDEN GLASS 777</h2>
-                        <h3 className="text-3xl font-bold mb-6 text-white">Hikayemiz & Vizyonumuz</h3>
+                        <h2 className="text-xs sm:text-sm text-[#00E676] font-bold uppercase tracking-wider mb-1 sm:mb-2">GOLDEN GLASS 777</h2>
+                        <h3 className="text-xl sm:text-2xl md:text-3xl font-bold mb-4 md:mb-6 text-white">Hikayemiz & Vizyonumuz</h3>
                         <div
-                            className="space-y-4 text-gray-400 leading-relaxed prose prose-lg max-w-none prose-invert"
+                            className="space-y-3 md:space-y-4 text-gray-400 leading-relaxed prose prose-sm md:prose-lg max-w-none prose-invert"
                             dangerouslySetInnerHTML={{ __html: content }}
                         />
                     </div>
-                    <div className="relative h-[300px] lg:h-[500px] rounded-2xl overflow-hidden shadow-2xl border border-white/5">
+                    <div className="relative h-[200px] sm:h-[250px] lg:h-[500px] rounded-xl lg:rounded-2xl overflow-hidden shadow-2xl border border-white/5">
                         <img
                             src={galleryImages[0] || "https://images.unsplash.com/photo-1582201942988-13e60e4556ee?auto=format&fit=crop&q=80&w=1200"}
                             alt="Production Process"
